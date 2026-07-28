@@ -24,6 +24,7 @@ gradle-app.setting
 *.jks
 *.keystore
 signing.properties
+keystore.properties
 
 # Kotlin
 *.class

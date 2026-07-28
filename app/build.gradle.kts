@@ -4,6 +4,13 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val keystorePropertiesFile = rootProject.file("app/keystore.properties")
+val keystoreProperties = java.util.Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(keystorePropertiesFile.inputStream())
+    }
+}
+
 android {
     namespace = "com.djapp"
     compileSdk = 35
@@ -16,13 +23,23 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(keystoreProperties.getProperty("storeFile", "debug.keystore"))
+            storePassword = keystoreProperties.getProperty("storePassword", "android")
+            keyAlias = keystoreProperties.getProperty("keyAlias", "androiddebugkey")
+            keyPassword = keystoreProperties.getProperty("keyPassword", "android")
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
