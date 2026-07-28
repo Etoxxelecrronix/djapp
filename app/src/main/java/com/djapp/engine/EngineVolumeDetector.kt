@@ -24,13 +24,13 @@ object EngineVolumeDetector {
         } catch (_: Exception) { false }
     }
 
-    private fun getTrackCount(context: Context, path: String): Int {
+    private fun getTrackCount(context: Context?, path: String): Int {
         return try {
-            if (hasEngineDb(path)) EngineDJDatabase.trackCount(context, path) else 0
+            if (context != null && hasEngineDb(path)) EngineDJDatabase.trackCount(context, path) else 0
         } catch (_: Exception) { 0 }
     }
 
-    private fun buildVolume(context: Context, path: String, label: String, type: VolumeType): EngineVolume? {
+    private fun buildVolume(context: Context?, path: String, label: String, type: VolumeType): EngineVolume? {
         val dir = File(path)
         if (!dir.exists() || !dir.isDirectory) return null
         val canRead = try { dir.canRead() } catch (_: Exception) { false }
@@ -102,7 +102,7 @@ object EngineVolumeDetector {
             val canRead = try { dir.canRead() } catch (_: Exception) { false }
             if (!canRead) continue
 
-            buildVolume(null as Context?, path, dir.name, VolumeType.USB)?.let { found.add(it) }
+            buildVolume(null, path, dir.name, VolumeType.USB)?.let { found.add(it) }
         }
 
         return found
