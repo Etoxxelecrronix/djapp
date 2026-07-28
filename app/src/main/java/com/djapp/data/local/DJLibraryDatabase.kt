@@ -5,17 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.djapp.data.local.dao.AnalysisDao
-import com.djapp.data.local.dao.BeatgridDao
-import com.djapp.data.local.dao.CuePointDao
-import com.djapp.data.local.dao.LoopDao
 import com.djapp.data.local.dao.PlaylistDao
 import com.djapp.data.local.dao.TrackDao
 import com.djapp.data.local.entity.AnalysisResultEntity
-import com.djapp.data.local.entity.BeatgridEntity
-import com.djapp.data.local.entity.CuePointEntity
 import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.PlaylistTrackEntity
-import com.djapp.data.local.entity.SavedLoopEntity
 import com.djapp.data.local.entity.TrackEntity
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -33,21 +27,15 @@ data class LibraryStats(
         TrackEntity::class,
         PlaylistEntity::class,
         PlaylistTrackEntity::class,
-        CuePointEntity::class,
-        SavedLoopEntity::class,
-        BeatgridEntity::class,
         AnalysisResultEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class DJLibraryDatabase : RoomDatabase() {
 
     abstract fun trackDao(): TrackDao
     abstract fun playlistDao(): PlaylistDao
-    abstract fun cuePointDao(): CuePointDao
-    abstract fun loopDao(): LoopDao
-    abstract fun beatgridDao(): BeatgridDao
     abstract fun analysisDao(): AnalysisDao
 
     companion object {

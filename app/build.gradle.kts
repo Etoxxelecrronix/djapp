@@ -71,14 +71,8 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // OkHttp
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
     // Gson
     implementation("com.google.code.gson:gson:2.11.0")
-
-    // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // DocumentFile (for SAF URI handling)
     implementation("androidx.documentfile:documentfile:1.0.1")

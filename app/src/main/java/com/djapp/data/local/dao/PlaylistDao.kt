@@ -8,7 +8,6 @@ import androidx.room.Query
 import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.PlaylistTrackEntity
 import com.djapp.data.local.entity.TrackEntity
-import kotlinx.coroutines.flow.Flow
 
 data class PlaylistWithCount(
     val id: Long,
@@ -32,13 +31,6 @@ interface PlaylistDao {
         FROM playlists p
         ORDER BY p.is_folder DESC, p.title ASC
     """)
-    fun getAllAsFlow(): Flow<List<PlaylistWithCount>>
-
-    @Query("""
-        SELECT p.*, (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlistId = p.id) as trackCount
-        FROM playlists p
-        ORDER BY p.is_folder DESC, p.title ASC
-    """)
     suspend fun getAll(): List<PlaylistWithCount>
 
     @Query("""
@@ -56,9 +48,6 @@ interface PlaylistDao {
     @Query("DELETE FROM playlists WHERE id = :id")
     suspend fun delete(id: Long)
 
-    @Query("UPDATE playlists SET synced_at = datetime('now'), engine_id = :engineId WHERE id = :id")
-    suspend fun markSynced(id: Long, engineId: Long? = null)
-
     @Query("""
         SELECT t.* FROM tracks t
         JOIN playlist_tracks pt ON pt.trackId = t.id
@@ -72,12 +61,6 @@ interface PlaylistDao {
 
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
     suspend fun removeTrack(playlistId: Long, trackId: Long)
-
-    @Query("UPDATE playlist_tracks SET position = :position WHERE playlistId = :playlistId AND trackId = :trackId")
-    suspend fun reorderTrack(playlistId: Long, trackId: Long, position: Int)
-
-    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
-    suspend fun clearTracks(playlistId: Long)
 
     @Query("SELECT COUNT(*) FROM playlists WHERE is_folder = 0")
     suspend fun getPlaylistCount(): Int

@@ -33,10 +33,6 @@ fun SyncSettingsPage() {
     val scope = rememberCoroutineScope()
     val db = remember { DJLibraryDatabase.getInstance(context) }
 
-    var syncPlaylists by remember { mutableStateOf(true) }
-    var syncAnalysisData by remember { mutableStateOf(true) }
-    var syncWaveforms by remember { mutableStateOf(false) }
-    var syncCrates by remember { mutableStateOf(false) }
     var isSyncing by remember { mutableStateOf(false) }
     var syncProgress by remember { mutableFloatStateOf(0f) }
     var showFolders by remember { mutableStateOf(false) }
@@ -78,21 +74,19 @@ fun SyncSettingsPage() {
                 syncProgress = 0.2f
                 currentSyncStep = "Synchronisiere mit Engine DJ..."
 
-                val playlistPairs = if (syncPlaylists) {
-                    val localPlaylists = withContext(Dispatchers.IO) { db.playlistDao().getAll() }
-                    localPlaylists.mapNotNull { pl ->
-                        val tracks = withContext(Dispatchers.IO) { db.playlistDao().getTracks(pl.id) }
-                        if (tracks.isNotEmpty()) {
-                            com.djapp.data.local.entity.PlaylistEntity(
-                                id = pl.id,
-                                title = pl.title,
-                                parentId = pl.parentId,
-                                isFolder = pl.isFolder,
-                                createdAt = pl.createdAt,
-                            ) to tracks
-                        } else null
-                    }
-                } else emptyList()
+                val localPlaylists = withContext(Dispatchers.IO) { db.playlistDao().getAll() }
+                val playlistPairs = localPlaylists.mapNotNull { pl ->
+                    val tracks = withContext(Dispatchers.IO) { db.playlistDao().getTracks(pl.id) }
+                    if (tracks.isNotEmpty()) {
+                        com.djapp.data.local.entity.PlaylistEntity(
+                            id = pl.id,
+                            title = pl.title,
+                            parentId = pl.parentId,
+                            isFolder = pl.isFolder,
+                            createdAt = pl.createdAt,
+                        ) to tracks
+                    } else null
+                }
 
                 syncProgress = 0.4f
 
@@ -211,53 +205,6 @@ fun SyncSettingsPage() {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Synchronisierungsoptionen",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = OnSurface,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                SyncToggle(
-                    title = "Playlists",
-                    description = "Playlist-Struktur und Tracks synchronisieren",
-                    checked = syncPlaylists,
-                    onCheckedChange = { syncPlaylists = it }
-                )
-
-                SyncToggle(
-                    title = "Analysedaten",
-                    description = "BPM, Key und andere Analyseergebnisse",
-                    checked = syncAnalysisData,
-                    onCheckedChange = { syncAnalysisData = it }
-                )
-
-                SyncToggle(
-                    title = "Waveforms",
-                    description = "Waveform-Daten für Visualisierung",
-                    checked = syncWaveforms,
-                    onCheckedChange = { syncWaveforms = it }
-                )
-
-                SyncToggle(
-                    title = "Crates",
-                    description = "Engine DJ Crate-Sammlungen",
-                    checked = syncCrates,
-                    onCheckedChange = { syncCrates = it }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -400,46 +347,6 @@ fun SyncSettingsPage() {
                     color = OnSurfaceVariant
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SyncToggle(
-    title: String,
-    description: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Secondary,
-                checkedTrackColor = Primary,
-                uncheckedThumbColor = OnSurfaceVariant,
-                uncheckedTrackColor = SurfaceVariant
-            )
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = OnSurface,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = OnSurfaceVariant
-            )
         }
     }
 }
