@@ -7,10 +7,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable

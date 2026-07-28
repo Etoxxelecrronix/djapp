@@ -1,9 +1,6 @@
 package com.djapp.analysis
 
-import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 data class BPMResult(

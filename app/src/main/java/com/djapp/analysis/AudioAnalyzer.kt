@@ -7,7 +7,6 @@ import com.djapp.analysis.parsers.FlacParser
 import com.djapp.analysis.parsers.Mp3Parser
 import com.djapp.analysis.parsers.WavParser
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 
