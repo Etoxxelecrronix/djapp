@@ -21,7 +21,7 @@ object ApiClient {
     private const val KEY_USER_EMAIL = "user_email"
 
     private var baseUrl = ""
-    private val gson = Gson()
+    internal val gson = Gson()
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()

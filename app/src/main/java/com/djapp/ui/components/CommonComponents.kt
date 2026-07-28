@@ -340,7 +340,7 @@ fun OutlinedGreenButton(
             contentColor = Primary,
             disabledContentColor = Primary.copy(alpha = 0.5f)
         ),
-        border = ButtonDefaults.outlinedButtonBorder(enabled = enabled),
+        border = ButtonDefaults.outlinedButtonBorder,
         shape = RoundedCornerShape(8.dp),
         modifier = modifier
             .fillMaxWidth()

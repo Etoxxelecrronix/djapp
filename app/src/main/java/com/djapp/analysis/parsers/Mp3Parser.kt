@@ -5,6 +5,14 @@ import com.djapp.analysis.MP3Info
 
 object Mp3Parser {
 
+    private fun readUint32BE(bytes: ByteArray, offset: Int): Int {
+        if (offset + 3 >= bytes.size) return 0
+        return ((bytes[offset].toInt() and 0xFF) shl 24) or
+                ((bytes[offset + 1].toInt() and 0xFF) shl 16) or
+                ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
+                (bytes[offset + 3].toInt() and 0xFF)
+    }
+
     private val MPEG_SAMPLE_RATES = arrayOf(
         intArrayOf(11025, 12000, 8000),   // MPEG 2.5
         intArrayOf(0, 0, 0),               // reserved
