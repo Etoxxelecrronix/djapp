@@ -23,7 +23,6 @@ import com.djapp.engine.EngineVolume
 import com.djapp.engine.EngineVolumeDetector
 import com.djapp.engine.VolumeType
 import com.djapp.i18n.Strings
-import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.OutlinedGreenButton
 import com.djapp.ui.theme.*
@@ -169,10 +168,33 @@ fun UsbStickPage() {
         }
 
         if (volumes.isEmpty() && !isScanning) {
-            EmptyState(
-                message = Strings.t("usb.no_devices"),
-                icon = Icons.Default.Usb,
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Usb, null, tint = OnSurfaceVariant, modifier = Modifier.size(40.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = Strings.t("usb.no_devices"),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = OnSurface,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Hilfe:\n" +
+                                "1. USB-Stick steckt im Handy (OTG)\n" +
+                                "2. Berechtigung 'Alle Dateien' erlauben\n" +
+                                "3. USB-Stick ist FAT32/exFAT formatiert\n" +
+                                "4. 'Scannen' Button erneut drücken",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant,
+                    )
+                }
+            }
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
