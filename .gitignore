@@ -1,0 +1,41 @@
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+/build/
+/app/build/
+/captures/
+/externalNativeBuild/
+
+# Gradle
+.gradle/
+local.properties
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Android Studio
+*.iml
+.idea/
+.DS_Store
+
+# Signing
+*.jks
+*.keystore
+signing.properties
+
+# Kotlin
+*.class
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Node (if any residual)
+node_modules/
+npm-debug.log
+
+# DataStore
+*.preferences_pb
