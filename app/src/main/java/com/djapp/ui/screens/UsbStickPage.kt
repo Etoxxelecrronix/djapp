@@ -61,7 +61,7 @@ fun UsbStickPage() {
         isScanning = true
         scope.launch {
             val found = withContext(Dispatchers.IO) {
-                EngineVolumeDetector.detectUsbVolumes(context)
+                EngineVolumeDetector.detectAllVolumes(context)
             }
             volumes = found
             isScanning = false
@@ -185,11 +185,12 @@ fun UsbStickPage() {
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Hilfe:\n" +
-                                "1. USB-Stick steckt im Handy (OTG)\n" +
-                                "2. Berechtigung 'Alle Dateien' erlauben\n" +
-                                "3. USB-Stick ist FAT32/exFAT formatiert\n" +
-                                "4. 'Scannen' Button erneut drücken",
+                        text = "USB-Stick nicht erkannt. Mögliche Gründe:\n" +
+                                "1. Handy unterstützt keinen USB-Host (OTG)\n" +
+                                "2. USB-Stick nicht richtig eingesteckt\n" +
+                                "3. Keine Berechtigung erteilt (Einstellungen > DJ Engine > Alle Dateien)\n" +
+                                "4. USB-Stick ist NTFS formatiert (FAT32/exFAT nötig)\n\n" +
+                                "Alternativ: Tracks im internen Speicher analysieren",
                         style = MaterialTheme.typography.bodySmall,
                         color = OnSurfaceVariant,
                     )
