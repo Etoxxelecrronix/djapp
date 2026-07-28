@@ -4,12 +4,8 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val keystorePropertiesFile = rootProject.file("app/keystore.properties")
-val keystoreProperties = java.util.Properties().apply {
-    if (keystorePropertiesFile.exists()) {
-        load(keystorePropertiesFile.inputStream())
-    }
-}
+val keystorePropsFile = rootProject.file("app/keystore.properties")
+val hasSigningConfig = keystorePropsFile.exists()
 
 android {
     namespace = "com.djapp"
@@ -23,12 +19,15 @@ android {
         versionName = "1.0"
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file(keystoreProperties.getProperty("storeFile", "debug.keystore"))
-            storePassword = keystoreProperties.getProperty("storePassword", "android")
-            keyAlias = keystoreProperties.getProperty("keyAlias", "androiddebugkey")
-            keyPassword = keystoreProperties.getProperty("keyPassword", "android")
+    if (hasSigningConfig) {
+        val keystoreProps = java.util.Properties().apply { load(keystorePropsFile.inputStream()) }
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
         }
     }
 
@@ -39,7 +38,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (hasSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
