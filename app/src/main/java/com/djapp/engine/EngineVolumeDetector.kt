@@ -32,7 +32,6 @@ object EngineVolumeDetector {
 
     private val INTERNAL_PATHS = listOf(
         "/storage/emulated/0" to "Interner Speicher",
-        "/sdcard" to "SD-Karte / Interner Speicher",
     )
 
     private fun detectVolume(

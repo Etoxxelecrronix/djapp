@@ -2,6 +2,7 @@ package com.djapp.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,8 +18,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.data.local.dao.PlaylistWithCount
+import com.djapp.data.local.entity.TrackEntity
+import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
+import com.djapp.ui.components.OutlinedGreenButton
 import com.djapp.ui.components.PlaylistListItem
 import com.djapp.ui.components.TrackListItem
 import com.djapp.ui.theme.*
@@ -35,12 +39,15 @@ fun PlaylistManagerPage() {
 
     var playlists by remember { mutableStateOf<List<PlaylistWithCount>>(emptyList()) }
     var selectedPlaylist by remember { mutableStateOf<PlaylistWithCount?>(null) }
-    var selectedPlaylistTracks by remember { mutableStateOf<List<com.djapp.data.local.entity.TrackEntity>>(emptyList()) }
+    var selectedPlaylistTracks by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var editingPlaylistId by remember { mutableStateOf<Long?>(null) }
     var editTitle by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deletingPlaylist by remember { mutableStateOf<PlaylistWithCount?>(null) }
+    var showAddTracksDialog by remember { mutableStateOf(false) }
+    var allTracks by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
+    var trackSearchQuery by remember { mutableStateOf("") }
 
     fun refreshPlaylists() {
         scope.launch {
@@ -53,6 +60,13 @@ fun PlaylistManagerPage() {
         scope.launch {
             val tracks = withContext(Dispatchers.IO) { db.playlistDao().getTracks(playlistId) }
             selectedPlaylistTracks = tracks
+        }
+    }
+
+    fun loadAllTracks() {
+        scope.launch {
+            val tracks = withContext(Dispatchers.IO) { db.getAllTracks() }
+            allTracks = tracks
         }
     }
 
@@ -112,10 +126,21 @@ fun PlaylistManagerPage() {
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    GreenButton(
-                        text = "Sync zu Speichermedium",
-                        onClick = { /* sync via EngineDJSync */ }
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GreenButton(
+                            text = "Tracks hinzufügen",
+                            onClick = {
+                                loadAllTracks()
+                                showAddTracksDialog = true
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedGreenButton(
+                            text = "Sync zu Speichermedium",
+                            onClick = { /* sync via EngineDJSync */ },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
@@ -138,6 +163,16 @@ fun PlaylistManagerPage() {
                             bpm = track.bpm,
                             key = track.keyCamelot,
                             isAnalyzed = track.isAnalyzed,
+                            onClick = {},
+                            onLongClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        db.playlistDao().removeTrack(selectedPlaylist!!.id, track.id)
+                                    }
+                                    loadTracks(selectedPlaylist!!.id)
+                                    refreshPlaylists()
+                                }
+                            }
                         )
                     }
                 }
@@ -258,6 +293,110 @@ fun PlaylistManagerPage() {
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) {
                     Text("Abbrechen", color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showAddTracksDialog && selectedPlaylist != null) {
+        val filteredTracks = if (trackSearchQuery.isBlank()) allTracks
+        else allTracks.filter {
+            it.title.contains(trackSearchQuery, ignoreCase = true) ||
+                it.artist.contains(trackSearchQuery, ignoreCase = true) ||
+                it.filename.contains(trackSearchQuery, ignoreCase = true)
+        }
+        val existingTrackIds = selectedPlaylistTracks.map { it.id }.toSet()
+
+        AlertDialog(
+            onDismissRequest = { showAddTracksDialog = false; trackSearchQuery = "" },
+            title = { Text("Tracks hinzufügen", color = OnSurface) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = trackSearchQuery,
+                        onValueChange = { trackSearchQuery = it },
+                        label = { Text("Suchen...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary,
+                            unfocusedBorderColor = OnSurfaceVariant,
+                            focusedTextColor = OnSurface,
+                            unfocusedTextColor = OnSurface,
+                            cursorColor = Primary
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (filteredTracks.isEmpty()) {
+                        Text(
+                            text = if (trackSearchQuery.isBlank()) "Keine Tracks in der Bibliothek"
+                            else "Keine Ergebnisse",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OnSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 400.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            items(filteredTracks) { track ->
+                                val isAlreadyAdded = track.id in existingTrackIds
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = !isAlreadyAdded) {
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    db.addTrackToPlaylist(selectedPlaylist!!.id, track.id)
+                                                }
+                                                loadTracks(selectedPlaylist!!.id)
+                                                refreshPlaylists()
+                                            }
+                                        }
+                                        .background(
+                                            if (isAlreadyAdded) Primary.copy(alpha = 0.05f)
+                                            else MaterialTheme.colorScheme.surface
+                                        )
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        if (isAlreadyAdded) Icons.Default.CheckCircle else Icons.Default.AddCircle,
+                                        contentDescription = null,
+                                        tint = if (isAlreadyAdded) Primary.copy(alpha = 0.3f) else Primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = track.title.ifBlank { track.filename },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = OnSurface
+                                        )
+                                        if (track.artist.isNotBlank()) {
+                                            Text(
+                                                text = track.artist,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = OnSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    if (track.bpm != null) {
+                                        BpmBadge(bpm = track.bpm)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAddTracksDialog = false; trackSearchQuery = "" }) {
+                    Text("Fertig", color = Primary)
                 }
             },
             containerColor = CardBackground

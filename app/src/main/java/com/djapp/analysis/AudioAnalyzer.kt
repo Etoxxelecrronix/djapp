@@ -194,19 +194,24 @@ object AudioAnalyzer {
     }
 
     private fun readBytesFromUri(context: Context, uri: Uri): ByteArray? {
+        // Handle file:// URIs directly via File API (contentResolver can't open these)
+        if (uri.scheme == "file") {
+            return try {
+                val path = uri.path ?: return null
+                val file = java.io.File(path)
+                if (!file.exists() || file.length() > MAX_FILE_SIZE) return null
+                file.inputStream().use { readLimited(it, MAX_FILE_SIZE) }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        // Handle content:// URIs via contentResolver
         return try {
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 readLimited(stream, MAX_FILE_SIZE)
             }
         } catch (e: Exception) {
-            try {
-                val path = uri.path ?: return null
-                val file = java.io.File(path)
-                if (!file.exists() || file.length() > MAX_FILE_SIZE) return null
-                file.inputStream().use { readLimited(it, MAX_FILE_SIZE) }
-            } catch (e2: Exception) {
-                null
-            }
+            null
         }
     }
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.scanner.FolderStat
 import com.djapp.scanner.MusicScanner
 import com.djapp.scanner.ScanPhase
@@ -32,12 +33,14 @@ fun FolderBrowserPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val db = remember { DJLibraryDatabase.getInstance(context) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFolder by remember { mutableStateOf<FolderStat?>(null) }
     var showContextMenu by remember { mutableStateOf(false) }
     var isScanning by remember { mutableStateOf(false) }
     var scanProgress by remember { mutableStateOf("") }
     var folders by remember { mutableStateOf<List<FolderStat>>(emptyList()) }
+    var importMessage by remember { mutableStateOf<String?>(null) }
 
     val prefs = remember { context.getSharedPreferences("dj_usb_selected", Context.MODE_PRIVATE) }
     val selectedPath = prefs.getString("usb_selected_path", null) ?: ""
@@ -58,6 +61,18 @@ fun FolderBrowserPage(
             folders = result.folders
             isScanning = false
             scanProgress = "${result.totalTracks} Tracks in ${result.folders.size} Ordnern"
+        }
+    }
+
+    fun importFolderAsPlaylist(folder: FolderStat) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val tracks = folder.tracks.map {
+                    Triple(it.path, it.name, it.extension)
+                }
+                db.importFolderAsPlaylist(folder.name, tracks)
+            }
+            importMessage = "\"${folder.name}\" als Playlist importiert"
         }
     }
 
@@ -133,6 +148,23 @@ fun FolderBrowserPage(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            if (importMessage != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Primary.copy(alpha = 0.12f)),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(importMessage!!, color = Primary, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+
             if (isScanning) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
@@ -187,6 +219,17 @@ fun FolderBrowserPage(
                         Icon(Icons.Default.Analytics, contentDescription = null, tint = Primary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Ordner analysieren", color = OnSurface)
+                    }
+                    TextButton(
+                        onClick = {
+                            showContextMenu = false
+                            importFolderAsPlaylist(selectedFolder!!)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = Primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Als Playlist importieren", color = OnSurface)
                     }
                 }
             },

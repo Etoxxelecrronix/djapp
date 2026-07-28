@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.djapp.analysis.AnalysisQueue
 import com.djapp.analysis.QueueItem
 import com.djapp.analysis.TrackStatus
+import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.scanner.MusicScanner
 import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
@@ -35,9 +36,11 @@ import java.io.File
 fun AnalysisProgressPage(folderPath: String) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val db = remember { DJLibraryDatabase.getInstance(context) }
     var isPaused by remember { mutableStateOf(false) }
     var isStarted by remember { mutableStateOf(false) }
     var scanMessage by remember { mutableStateOf("") }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     val queueState by AnalysisQueue.queue.collectAsState()
     val items = queueState.values.sortedBy { it.status != TrackStatus.QUEUED }
@@ -89,6 +92,19 @@ fun AnalysisProgressPage(folderPath: String) {
     fun stopAnalysis() {
         AnalysisQueue.clearQueue()
         isStarted = false
+    }
+
+    fun createPlaylistFromAnalyzedTracks(playlistName: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val plId = db.createPlaylist(playlistName)
+                val doneItems = items.filter { it.status == TrackStatus.DONE && it.trackId != null }
+                for ((pos, item) in doneItems.withIndex()) {
+                    db.addTrackToPlaylist(plId, item.trackId!!, pos)
+                }
+            }
+            showCreatePlaylistDialog = false
+        }
     }
 
     Column(
@@ -250,6 +266,11 @@ fun AnalysisProgressPage(folderPath: String) {
                             color = OnSurface
                         )
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GreenButton(
+                        text = "Als Playlist speichern",
+                        onClick = { showCreatePlaylistDialog = true }
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -329,5 +350,42 @@ fun AnalysisProgressPage(folderPath: String) {
                 }
             }
         }
+    }
+
+    if (showCreatePlaylistDialog) {
+        var playlistName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylistDialog = false },
+            title = { Text("Playlist erstellen", color = OnSurface) },
+            text = {
+                OutlinedTextField(
+                    value = playlistName,
+                    onValueChange = { playlistName = it },
+                    label = { Text("Playlist-Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = OnSurfaceVariant,
+                        focusedTextColor = OnSurface,
+                        unfocusedTextColor = OnSurface,
+                        cursorColor = Primary
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (playlistName.isNotBlank()) createPlaylistFromAnalyzedTracks(playlistName) }
+                ) {
+                    Text("Erstellen", color = Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                    Text("Abbrechen", color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
     }
 }
