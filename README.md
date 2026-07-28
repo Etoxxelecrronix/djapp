@@ -310,6 +310,39 @@ git add -A && git commit -m "message" && git push
 
 ---
 
+## Offene TODO-Liste (nach Priorität)
+
+### 🔴 Hoch
+
+| # | Problem | Datei(en) |
+|---|---------|-----------|
+| 1 | **m.db wird 4–5× pro Sync kopiert** – `openEngineDb()` macht jedes Mal volles File I/O von USB | `EngineDJDatabase.kt:68-88` |
+| 2 | **`getLibraryStats()` lädt ALLE Tracks ins RAM** statt SQL-Aggregates (`COUNT`, `AVG`) | `DJLibraryDatabase.kt:131-149` |
+| 3 | **`fallbackToDestructiveMigration()` löscht alle User-Daten** bei Schema-Änderung | `DJLibraryDatabase.kt:52` |
+| 4 | **Scan-Cache in SharedPreferences** (>2 MB → `TransactionTooLargeException`) | `MusicScanner.kt:185-212` |
+| 5 | **M3U8-Fehler werden geschluckt** – silent catch bei Playlist-Export | `EngineDJSync.kt:288, 319` |
+
+### 🟡 Mittel
+
+| # | Problem | Datei(en) |
+|---|---------|-----------|
+| 6 | **19× `!!` (Non-Null Assertion)** – potenzielle NPEs in Screens | Alle Screens |
+| 7 | **9× leere `catch {}` Blöcke** – Exceptions werden verschluckt | `MainActivity.kt`, `MusicScanner.kt`, `EngineVolumeDetector.kt` u.a. |
+| 8 | **`PermissionLauncher`-Fehler stumm** – wenn Berechtigung fehlschlägt | `MainActivity.kt:75, 79` |
+
+### 🟢 Niedrig / Stil
+
+| # | Problem | Datei(en) |
+|---|---------|-----------|
+| 9 | **`android.enableJetifier=true`** ist deprecated | `gradle.properties:2` |
+| 10 | **Nur Dark Theme** – kein Light-Scheme definiert | `Theme.kt` |
+| 11 | **Wildcard-Imports** (`import ...*`) in allen Screens (42 Stellen) | Alle Screens + `CommonComponents.kt` |
+| 12 | **Mixed Float/Double** in Waveform-Berechnung | `WaveformGenerator.kt:75` |
+| 13 | **Vollqualifiziertes `Context`** (inkonsistent zu anderen Files) | `UsbStickPage.kt:61` |
+| 14 | **Fehler-Erkennung per String-Prefix** (`"Error:"`) – zerbrechlich bei i18n | `AnalysisProgressPage.kt:145` |
+
+---
+
 ## Chat-Verlauf
 
 ### Phase 1: React Native → Kotlin Konvertierung
