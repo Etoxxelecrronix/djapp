@@ -60,6 +60,7 @@ import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.KeyBadge
+import com.djapp.ui.theme.BpmBadge as BpmBadgeColor
 import com.djapp.ui.theme.CardBackground
 import com.djapp.ui.theme.ErrorRed
 import com.djapp.ui.theme.OnSurface
@@ -386,7 +387,7 @@ fun AnalysisProgressPage(folderPath: String) {
                                 contentDescription = null,
                                 tint = when (item.status) {
                                     TrackStatus.DONE -> Primary
-                                    TrackStatus.ANALYZING -> BpmBadge
+                                    TrackStatus.ANALYZING -> BpmBadgeColor
                                     TrackStatus.ERROR -> ErrorRed
                                     TrackStatus.QUEUED -> OnSurfaceVariant
                                 },
