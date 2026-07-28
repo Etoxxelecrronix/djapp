@@ -156,6 +156,106 @@ object EngineDJSync {
         )
     }
 
+    fun writeAnalysisResultsToUsb(
+        context: Context,
+        volumePath: String,
+        tracks: List<Triple<String, String, com.djapp.analysis.AnalysisResult?>>,
+        playlistName: String?,
+    ): EngineSyncResult {
+        val db = EngineDJDatabase.openEngineDb(context, volumePath)
+            ?: return EngineSyncResult(0, 0, listOf("Konnte m.db nicht öffnen"))
+
+        val volumeRoot = volumePath.trimEnd('/')
+        val errors = mutableListOf<String>()
+        val engineTrackIds = mutableListOf<Long>()
+
+        try {
+            for ((filePath, filename, result) in tracks) {
+                try {
+                    val relPath = EngineDJDatabase.engineRelativePath(filePath, volumeRoot)
+                    val ext = filename.substringAfterLast('.', "")
+                    val fileType = fileTypeFromExt(ext)
+                    val bpmInt = result?.bpm?.let { (it * 100).toInt() }
+
+                    val existing = db.rawQuery(
+                        "SELECT id FROM Track WHERE path=? OR filename=?",
+                        arrayOf(relPath, filename)
+                    )
+                    val existingId = if (existing.moveToFirst()) existing.getLong(0) else null
+                    existing.close()
+
+                    if (existingId != null) {
+                        db.execSQL(
+                            """UPDATE Track SET title=?, bpm=?, bpmAnalyzed=?,
+                               isAnalyzed=?, fileType=?, lastEditTime=datetime('now')
+                               WHERE id=?""",
+                            arrayOf(
+                                filename.replace(Regex("\\.[^.]+$"), ""),
+                                bpmInt, result?.bpm,
+                                if (result != null) 1 else 0,
+                                fileType, existingId,
+                            )
+                        )
+                        engineTrackIds.add(existingId)
+                    } else {
+                        db.execSQL(
+                            """INSERT INTO Track
+                               (path, filename, title, bpm, bpmAnalyzed, fileType,
+                                isAnalyzed, isAvailable, dateAdded, lastEditTime)
+                               VALUES (?,?,?,?,?,?,?,1,datetime('now'),datetime('now'))""",
+                            arrayOf(
+                                relPath, filename,
+                                filename.replace(Regex("\\.[^.]+$"), ""),
+                                bpmInt, result?.bpm, fileType,
+                                if (result != null) 1 else 0,
+                            )
+                        )
+                        val cursor = db.rawQuery("SELECT last_insert_rowid()", null)
+                        if (cursor.moveToFirst()) engineTrackIds.add(cursor.getLong(0))
+                        cursor.close()
+                    }
+                } catch (e: Exception) {
+                    errors.add("Track $filename: ${e.message}")
+                }
+            }
+
+            if (playlistName != null && engineTrackIds.isNotEmpty()) {
+                try {
+                    db.execSQL(
+                        "INSERT INTO Playlist (title, isPersisted, flags) VALUES (?,1,0)",
+                        arrayOf(playlistName)
+                    )
+                    val cursor = db.rawQuery("SELECT last_insert_rowid()", null)
+                    val playlistId = if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+                    cursor.close()
+
+                    for (trackId in engineTrackIds) {
+                        db.execSQL(
+                            """INSERT INTO PlaylistEntity
+                               (listId, trackId, databaseUuid, membershipReference, dateAdded)
+                               VALUES (?,?,hex(randomblob(16)),0,strftime('%s','now'))""",
+                            arrayOf(playlistId, trackId)
+                        )
+                    }
+                } catch (e: Exception) {
+                    errors.add("Playlist $playlistName: ${e.message}")
+                }
+            }
+
+        } finally {
+            db.close()
+        }
+
+        val flushed = EngineDJDatabase.flushEngineDb(context, volumePath)
+        if (!flushed) errors.add("Konnte m.db nicht auf das Medium schreiben")
+
+        return EngineSyncResult(
+            tracksWritten = engineTrackIds.size,
+            playlistsWritten = if (playlistName != null) 1 else 0,
+            errors = errors,
+        )
+    }
+
     private fun writeM3U8Files(
         volumePath: String,
         playlists: List<Pair<PlaylistEntity, List<TrackEntity>>>,

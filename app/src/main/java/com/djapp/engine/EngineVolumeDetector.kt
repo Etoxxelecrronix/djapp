@@ -70,6 +70,16 @@ object EngineVolumeDetector {
             detectVolume(context, path, label, VolumeType.USB)?.let { found.add(it) }
         }
 
+        return found
+    }
+
+    suspend fun detectAllVolumes(context: Context): List<EngineVolume> {
+        val found = mutableListOf<EngineVolume>()
+
+        for ((path, label) in USB_PATHS) {
+            detectVolume(context, path, label, VolumeType.USB)?.let { found.add(it) }
+        }
+
         for ((path, label) in INTERNAL_PATHS) {
             detectVolume(context, path, label, VolumeType.INTERNAL)?.let { found.add(it) }
         }

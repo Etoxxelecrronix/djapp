@@ -87,7 +87,7 @@ fun LibraryPage() {
                 selectedTab = 2
                 scope.launch {
                     withContext(Dispatchers.IO) {
-                        deviceList = EngineVolumeDetector.detectUsbVolumes(context)
+                        deviceList = EngineVolumeDetector.detectAllVolumes(context)
                     }
                 }
             }) {
@@ -126,7 +126,7 @@ fun LibraryPage() {
                 onRefresh = {
                     scope.launch {
                         withContext(Dispatchers.IO) {
-                            deviceList = EngineVolumeDetector.detectUsbVolumes(context)
+                            deviceList = EngineVolumeDetector.detectAllVolumes(context)
                         }
                     }
                 },

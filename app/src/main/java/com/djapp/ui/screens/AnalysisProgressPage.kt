@@ -20,6 +20,8 @@ import com.djapp.analysis.AnalysisQueue
 import com.djapp.analysis.QueueItem
 import com.djapp.analysis.TrackStatus
 import com.djapp.data.local.DJLibraryDatabase
+import com.djapp.engine.EngineDJSync
+import com.djapp.engine.EngineVolumeDetector
 import com.djapp.scanner.MusicScanner
 import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
@@ -41,6 +43,9 @@ fun AnalysisProgressPage(folderPath: String) {
     var isStarted by remember { mutableStateOf(false) }
     var scanMessage by remember { mutableStateOf("") }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showUsbWriteDialog by remember { mutableStateOf(false) }
+    var usbWriteResult by remember { mutableStateOf<String?>(null) }
+    var isWritingToUsb by remember { mutableStateOf(false) }
 
     val queueState by AnalysisQueue.queue.collectAsState()
     val items = queueState.values.sortedBy { it.status != TrackStatus.QUEUED }
@@ -104,6 +109,43 @@ fun AnalysisProgressPage(folderPath: String) {
                 }
             }
             showCreatePlaylistDialog = false
+        }
+    }
+
+    fun writeAnalyzedTracksToUsb(playlistName: String) {
+        scope.launch {
+            isWritingToUsb = true
+            usbWriteResult = null
+            val result = withContext(Dispatchers.IO) {
+                val volumes = EngineVolumeDetector.detectUsbVolumes(context)
+                val usbVolume = volumes.firstOrNull()
+                if (usbVolume == null) {
+                    return@withContext "Kein USB-Stick gefunden"
+                }
+                val doneItems = items.filter { it.status == TrackStatus.DONE }
+                if (doneItems.isEmpty()) {
+                    return@withContext "Keine analysierten Tracks gefunden"
+                }
+                val tracks = doneItems.map { item ->
+                    val filePath = if (item.uri.scheme == "file") {
+                        item.uri.path ?: ""
+                    } else {
+                        item.uri.toString()
+                    }
+                    Triple(filePath, item.filename, item.result)
+                }
+                val syncResult = EngineDJSync.writeAnalysisResultsToUsb(
+                    context, usbVolume.path, tracks, playlistName
+                )
+                if (syncResult.errors.isNotEmpty()) {
+                    "Fehler: ${syncResult.errors.joinToString(", ")}"
+                } else {
+                    "${syncResult.tracksWritten} Tracks + Playlist auf USB geschrieben"
+                }
+            }
+            usbWriteResult = result
+            isWritingToUsb = false
+            showUsbWriteDialog = false
         }
     }
 
@@ -268,9 +310,24 @@ fun AnalysisProgressPage(folderPath: String) {
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     GreenButton(
-                        text = "Als Playlist speichern",
-                        onClick = { showCreatePlaylistDialog = true }
+                        text = "Auf USB schreiben",
+                        onClick = { showUsbWriteDialog = true }
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = { showCreatePlaylistDialog = true },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Lokal speichern", color = OnSurfaceVariant)
+                    }
+                    if (usbWriteResult != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = usbWriteResult!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (usbWriteResult!!.startsWith("Fehler")) ErrorRed else Primary
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -382,6 +439,56 @@ fun AnalysisProgressPage(folderPath: String) {
             },
             dismissButton = {
                 TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                    Text("Abbrechen", color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showUsbWriteDialog) {
+        var playlistName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showUsbWriteDialog = false },
+            title = { Text("Auf USB schreiben", color = OnSurface) },
+            text = {
+                Column {
+                    Text(
+                        text = "Schreibt die analysierten Tracks und eine Playlist in die Engine DJ m.db auf dem USB-Stick.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = playlistName,
+                        onValueChange = { playlistName = it },
+                        label = { Text("Playlist-Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary,
+                            unfocusedBorderColor = OnSurfaceVariant,
+                            focusedTextColor = OnSurface,
+                            unfocusedTextColor = OnSurface,
+                            cursorColor = Primary
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (playlistName.isNotBlank()) writeAnalyzedTracksToUsb(playlistName) },
+                    enabled = !isWritingToUsb
+                ) {
+                    if (isWritingToUsb) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Primary, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Text("Schreiben", color = Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUsbWriteDialog = false }, enabled = !isWritingToUsb) {
                     Text("Abbrechen", color = Primary)
                 }
             },
