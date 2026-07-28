@@ -1,5 +1,6 @@
 package com.djapp.ui.screens
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -117,8 +118,16 @@ fun AnalysisProgressPage(folderPath: String) {
             isWritingToUsb = true
             usbWriteResult = null
             val result = withContext(Dispatchers.IO) {
-                val volumes = EngineVolumeDetector.detectUsbVolumes(context)
-                val usbVolume = volumes.firstOrNull()
+                var volumes = EngineVolumeDetector.detectUsbVolumes(context)
+                var usbVolume = volumes.firstOrNull()
+                if (usbVolume == null) {
+                    val prefs = context.getSharedPreferences("dj_usb_selected", Context.MODE_PRIVATE)
+                    val manualPath = prefs.getString("usb_selected_path", null)
+                    if (!manualPath.isNullOrBlank()) {
+                        val manualVol = EngineVolumeDetector.detectVolumeAtPath(context, manualPath)
+                        if (manualVol != null) usbVolume = manualVol
+                    }
+                }
                 if (usbVolume == null) {
                     return@withContext "Kein USB-Stick gefunden"
                 }

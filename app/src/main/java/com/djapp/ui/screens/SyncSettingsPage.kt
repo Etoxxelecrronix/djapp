@@ -53,6 +53,13 @@ fun SyncSettingsPage() {
         val volumes = withContext(Dispatchers.IO) { EngineVolumeDetector.detectUsbVolumes(context) }
         usbVolume = volumes.firstOrNull { it.hasEngineLibrary }
 
+        if (usbVolume == null && selectedPath.isNotBlank()) {
+            val manualVolume = withContext(Dispatchers.IO) {
+                EngineVolumeDetector.detectVolumeAtPath(context, selectedPath)
+            }
+            if (manualVolume != null) usbVolume = manualVolume
+        }
+
         lastSyncTime = prefs.getString("last_sync_time", null)
     }
 

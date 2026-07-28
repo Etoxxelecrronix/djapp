@@ -2,6 +2,8 @@ package com.djapp.ui.screens
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Environment
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -34,6 +36,25 @@ import kotlinx.coroutines.withContext
 private const val PREFS_NAME = "dj_usb_selected"
 private const val KEY_SELECTED_PATH = "usb_selected_path"
 
+/** Resolves a SAF tree URI (from ACTION_OPEN_DOCUMENT_TREE) to a real file path. */
+private fun resolveSafTreeUri(uri: android.net.Uri): String? {
+    if (uri.scheme != "content") return uri.path
+    try {
+        val docId = DocumentsContract.getTreeDocumentId(uri)
+        val split = docId.split(":")
+        val storageType = split[0]
+        val relativePath = if (split.size > 1) split[1] else ""
+        val resolved = if (storageType.equals("primary", ignoreCase = true)) {
+            Environment.getExternalStorageDirectory().absolutePath + "/" + relativePath
+        } else {
+            "/storage/$storageType/$relativePath"
+        }
+        return resolved.trimEnd('/')
+    } catch (_: Exception) {
+        return uri.path?.trimEnd('/')
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UsbStickPage() {
@@ -50,10 +71,11 @@ fun UsbStickPage() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                val docFile = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, uri)
-                val path = docFile?.uri?.path ?: uri.path ?: ""
-                selectedPath = path
-                prefs.edit().putString(KEY_SELECTED_PATH, path).apply()
+                val realPath = resolveSafTreeUri(uri)
+                if (realPath != null) {
+                    selectedPath = realPath
+                    prefs.edit().putString(KEY_SELECTED_PATH, realPath).apply()
+                }
             }
         }
     }

@@ -63,6 +63,17 @@ object EngineVolumeDetector {
         )
     }
 
+    suspend fun detectVolumeAtPath(context: Context, path: String): EngineVolume? {
+        val label = when {
+            path.startsWith("/storage/emulated") -> "Interner Speicher"
+            path.startsWith("/storage/") -> "USB-Stick (manuell)"
+            path.startsWith("/mnt/") -> "USB-Stick (manuell)"
+            else -> "Ordner"
+        }
+        val type = if (path.startsWith("/storage/emulated")) VolumeType.INTERNAL else VolumeType.USB
+        return detectVolume(context, path, label, type)
+    }
+
     suspend fun detectUsbVolumes(context: Context): List<EngineVolume> {
         val found = mutableListOf<EngineVolume>()
 
