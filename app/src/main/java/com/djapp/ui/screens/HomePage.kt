@@ -216,7 +216,7 @@ fun HomePage(
             Spacer(modifier = Modifier.height(24.dp))
 
             GreenButton(
-                text = "USB-Stick auswählen",
+                text = "Speichermedium auswählen",
                 onClick = onNavigateToUsbStick
             )
 

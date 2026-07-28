@@ -84,7 +84,7 @@ fun FolderBrowserPage(
         if (selectedPath.isBlank()) {
             Spacer(modifier = Modifier.height(12.dp))
             EmptyState(
-                message = "Kein USB-Stick ausgewählt. Bitte unter USB-Stick einen Stick auswählen.",
+                message = "Kein Speichermedium ausgewählt. Bitte unter Speichermedium eines auswählen.",
                 icon = Icons.Default.UsbOff
             )
         } else {

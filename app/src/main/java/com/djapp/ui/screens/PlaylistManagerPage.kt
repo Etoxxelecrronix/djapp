@@ -113,7 +113,7 @@ fun PlaylistManagerPage() {
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     GreenButton(
-                        text = "Sync to USB",
+                        text = "Sync zu Speichermedium",
                         onClick = { /* sync via EngineDJSync */ }
                     )
                 }

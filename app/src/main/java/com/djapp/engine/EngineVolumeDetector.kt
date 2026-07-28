@@ -30,33 +30,49 @@ object EngineVolumeDetector {
         "/storage/usb" to "USB-Stick",
     )
 
+    private val INTERNAL_PATHS = listOf(
+        "/storage/emulated/0" to "Interner Speicher",
+        "/sdcard" to "SD-Karte / Interner Speicher",
+    )
+
+    private fun detectVolume(
+        context: Context,
+        path: String,
+        label: String,
+        type: VolumeType,
+    ): EngineVolume? {
+        val dir = File(path)
+        if (!dir.exists() || !dir.canRead()) return null
+
+        val dbFile = File(path, ENGINE_DB_RELATIVE)
+        val hasEngineLibrary = dbFile.exists()
+
+        var trackCount = 0
+        if (hasEngineLibrary) {
+            try {
+                trackCount = EngineDJDatabase.trackCount(context, path)
+            } catch (_: Exception) {
+            }
+        }
+
+        return EngineVolume(
+            path = path,
+            label = label,
+            type = type,
+            hasEngineLibrary = hasEngineLibrary,
+            trackCount = trackCount,
+        )
+    }
+
     suspend fun detectUsbVolumes(context: Context): List<EngineVolume> {
         val found = mutableListOf<EngineVolume>()
 
         for ((path, label) in USB_PATHS) {
-            val dir = File(path)
-            if (!dir.exists() || !dir.canRead()) continue
+            detectVolume(context, path, label, VolumeType.USB)?.let { found.add(it) }
+        }
 
-            val dbFile = File(path, ENGINE_DB_RELATIVE)
-            val hasEngineLibrary = dbFile.exists()
-
-            var trackCount = 0
-            if (hasEngineLibrary) {
-                try {
-                    trackCount = EngineDJDatabase.trackCount(context, path)
-                } catch (_: Exception) {
-                }
-            }
-
-            found.add(
-                EngineVolume(
-                    path = path,
-                    label = label,
-                    type = VolumeType.USB,
-                    hasEngineLibrary = hasEngineLibrary,
-                    trackCount = trackCount,
-                )
-            )
+        for ((path, label) in INTERNAL_PATHS) {
+            detectVolume(context, path, label, VolumeType.INTERNAL)?.let { found.add(it) }
         }
 
         return found

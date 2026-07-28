@@ -62,7 +62,7 @@ fun SyncSettingsPage() {
 
     fun doSync() {
         if (usbVolume == null) {
-            syncMessage = "Kein USB-Stick mit Engine DJ Library gefunden"
+            syncMessage = "Kein Speichermedium mit Engine DJ Library gefunden"
             return
         }
         isSyncing = true
@@ -143,7 +143,7 @@ fun SyncSettingsPage() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "USB-Stick Status",
+                    text = "Speichermedium Status",
                     style = MaterialTheme.typography.titleMedium,
                     color = OnSurface,
                     fontWeight = FontWeight.SemiBold
@@ -179,7 +179,7 @@ fun SyncSettingsPage() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Kein USB-Stick ausgewählt",
+                            text = "Kein Speichermedium ausgewählt",
                             style = MaterialTheme.typography.bodyMedium,
                             color = ErrorRed
                         )

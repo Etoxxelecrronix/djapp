@@ -8,7 +8,7 @@ sealed class Screen(val route: String, val title: String) {
         fun createRoute(folderPath: String) =
             "analysis_progress/${java.net.URLEncoder.encode(folderPath, "UTF-8")}"
     }
-    object UsbStick : Screen("usb_stick", "USB-Stick")
+    object UsbStick : Screen("usb_stick", "Speichermedium")
     object Library : Screen("library", "Bibliothek")
     object SyncSettings : Screen("sync_settings", "Synchronisierung")
 }
