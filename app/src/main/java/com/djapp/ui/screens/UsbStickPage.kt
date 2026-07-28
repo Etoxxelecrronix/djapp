@@ -23,6 +23,7 @@ import com.djapp.engine.EngineVolume
 import com.djapp.engine.EngineVolumeDetector
 import com.djapp.engine.VolumeType
 import com.djapp.i18n.Strings
+import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.OutlinedGreenButton
 import com.djapp.ui.theme.*
@@ -61,7 +62,7 @@ fun UsbStickPage() {
         isScanning = true
         scope.launch {
             val found = withContext(Dispatchers.IO) {
-                EngineVolumeDetector.detectAllVolumes(context)
+                EngineVolumeDetector.detectUsbVolumes(context)
             }
             volumes = found
             isScanning = false
@@ -168,34 +169,10 @@ fun UsbStickPage() {
         }
 
         if (volumes.isEmpty() && !isScanning) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                colors = CardDefaults.cardColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Usb, null, tint = OnSurfaceVariant, modifier = Modifier.size(40.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = Strings.t("usb.no_devices"),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = OnSurface,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "USB-Stick nicht erkannt. Mögliche Gründe:\n" +
-                                "1. Handy unterstützt keinen USB-Host (OTG)\n" +
-                                "2. USB-Stick nicht richtig eingesteckt\n" +
-                                "3. Keine Berechtigung erteilt (Einstellungen > DJ Engine > Alle Dateien)\n" +
-                                "4. USB-Stick ist NTFS formatiert (FAT32/exFAT nötig)\n\n" +
-                                "Alternativ: Tracks im internen Speicher analysieren",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OnSurfaceVariant,
-                    )
-                }
-            }
+            EmptyState(
+                message = Strings.t("usb.no_devices"),
+                icon = Icons.Default.Usb,
+            )
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
