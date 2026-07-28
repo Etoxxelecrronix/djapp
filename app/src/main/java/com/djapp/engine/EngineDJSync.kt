@@ -168,6 +168,7 @@ object EngineDJSync {
         val volumeRoot = volumePath.trimEnd('/')
         val errors = mutableListOf<String>()
         val engineTrackIds = mutableListOf<Long>()
+        val writtenTracks = mutableListOf<Triple<String, String, com.djapp.analysis.AnalysisResult?>>()
 
         try {
             for ((filePath, filename, result) in tracks) {
@@ -214,6 +215,7 @@ object EngineDJSync {
                         if (cursor.moveToFirst()) engineTrackIds.add(cursor.getLong(0))
                         cursor.close()
                     }
+                    writtenTracks.add(Triple(filePath, filename, result))
                 } catch (e: Exception) {
                     errors.add("Track $filename: ${e.message}")
                 }
@@ -237,6 +239,8 @@ object EngineDJSync {
                             arrayOf(playlistId, trackId)
                         )
                     }
+
+                    writeM3U8ForAnalyzed(volumePath, playlistName, writtenTracks)
                 } catch (e: Exception) {
                     errors.add("Playlist $playlistName: ${e.message}")
                 }
@@ -254,6 +258,36 @@ object EngineDJSync {
             playlistsWritten = if (playlistName != null) 1 else 0,
             errors = errors,
         )
+    }
+
+    private fun writeM3U8ForAnalyzed(
+        volumePath: String,
+        playlistName: String,
+        tracks: List<Triple<String, String, com.djapp.analysis.AnalysisResult?>>,
+    ) {
+        val plDir = File(volumePath, "Engine Library/Playlists")
+        if (!plDir.exists()) plDir.mkdirs()
+
+        try {
+            val safe = playlistName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            val file = File(plDir, "$safe.m3u8")
+            FileWriter(file).use { w ->
+                w.write("#EXTM3U\n")
+                w.write("#PLAYLIST:$playlistName\n")
+                for ((path, filename, result) in tracks) {
+                    val info = filename.replace(Regex("\\.[^.]+$"), "")
+                    val extInf = buildString {
+                        append("#EXTINF:-1")
+                        result?.bpm?.let { append(",bpm=${String.format("%.1f", it)}") }
+                        result?.camelotKey?.let { append(",key=$it") }
+                        append(",$info")
+                    }
+                    w.write("$extInf\n")
+                    w.write("$path\n")
+                }
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun writeM3U8Files(
