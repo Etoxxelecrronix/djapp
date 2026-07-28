@@ -1,13 +1,14 @@
 package com.djapp.scanner
 
 import android.content.Context
-import android.content.SharedPreferences
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
 
 val MUSIC_EXTENSIONS = setOf("mp3", "flac", "aif", "aiff", "wav", "ogg", "m4a", "alac", "aac")
@@ -47,8 +48,8 @@ data class ScanResult(
 )
 
 private const val MAX_DEPTH = 10
-private const val SCAN_CACHE_KEY = "dj_scan_cache_v3"
-private const val PREFS_NAME = "dj_scanner_cache"
+private const val CACHE_DIR = "music_scanner_cache"
+private const val MAX_CACHED_ROOTS = 5
 
 data class CacheEntry(
     val rootPath: String,
@@ -60,8 +61,17 @@ object MusicScanner {
 
     private var lastYieldTime = 0L
 
-    private fun getPrefs(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun cacheDir(context: Context): File {
+        val dir = File(context.cacheDir, CACHE_DIR)
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    private fun cacheFile(context: Context, rootPath: String): File {
+        val hash = MessageDigest.getInstance("MD5")
+            .digest(rootPath.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return File(cacheDir(context), "$hash.json")
     }
 
     private suspend fun maybeYield() {
@@ -183,41 +193,48 @@ object MusicScanner {
     }
 
     private fun loadCache(context: Context): List<CacheEntry> {
-        return try {
-            val prefs = getPrefs(context)
-            val json = prefs.getString(SCAN_CACHE_KEY, null) ?: return emptyList()
-            val type = object : TypeToken<List<CacheEntry>>() {}.type
-            Gson().fromJson(json, type) ?: emptyList()
-        } catch (_: Exception) {
-            emptyList()
-        }
+        val type = object : TypeToken<CacheEntry>() {}.type
+        return cacheDir(context).listFiles()
+            ?.filter { it.extension == "json" }
+            ?.mapNotNull { file ->
+                try {
+                    Gson().fromJson<CacheEntry>(file.readText(), type)
+                } catch (_: Exception) {
+                    file.delete()
+                    null
+                }
+            }
+            ?.sortedByDescending { it.scannedAt }
+            .orEmpty()
     }
 
     private fun saveCache(context: Context, rootPath: String, tracks: List<ScanTrack>) {
         try {
-            val prefs = getPrefs(context)
-            val cache = loadCache(context).filter { it.rootPath != rootPath }.toMutableList()
-            cache.add(
-                CacheEntry(
-                    rootPath = rootPath,
-                    tracks = tracks,
-                    scannedAt = java.time.Instant.now().toString(),
-                )
+            val entry = CacheEntry(
+                rootPath = rootPath,
+                tracks = tracks,
+                scannedAt = java.time.Instant.now().toString(),
             )
-            // Keep last 5
-            val trimmed = cache.takeLast(5)
-            prefs.edit().putString(SCAN_CACHE_KEY, Gson().toJson(trimmed)).apply()
-        } catch (_: Exception) {
+            cacheFile(context, rootPath).writeText(Gson().toJson(entry))
+
+            // Prune to keep only the last N root paths
+            val allFiles = cacheDir(context).listFiles()
+                ?.filter { it.extension == "json" }
+                ?.sortedByDescending { it.lastModified() }
+                .orEmpty()
+            if (allFiles.size > MAX_CACHED_ROOTS) {
+                allFiles.drop(MAX_CACHED_ROOTS).forEach { it.delete() }
+            }
+        } catch (e: Exception) {
+            Log.w("MusicScanner", "cache prune failed", e)
         }
     }
 
     suspend fun clearScanCache(context: Context, rootPath: String? = null) {
-        val prefs = getPrefs(context)
         if (rootPath != null) {
-            val cache = loadCache(context).filter { it.rootPath != rootPath }
-            prefs.edit().putString(SCAN_CACHE_KEY, Gson().toJson(cache)).apply()
+            cacheFile(context, rootPath).delete()
         } else {
-            prefs.edit().remove(SCAN_CACHE_KEY).apply()
+            cacheDir(context).listFiles()?.forEach { it.delete() }
         }
     }
 }

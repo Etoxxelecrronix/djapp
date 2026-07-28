@@ -179,8 +179,9 @@ object Strings {
 
     operator fun get(key: String): String {
         val lang = currentLocale.language
-        val map = maps[lang] ?: maps["de"]!!
-        return map[key] ?: maps["de"]!![key] ?: key
+        val deMap = requireNotNull(maps["de"]) { "de locale map missing" }
+        val map = maps[lang] ?: deMap
+        return map[key] ?: deMap[key] ?: key
     }
 
     fun t(key: String): String = get(key)

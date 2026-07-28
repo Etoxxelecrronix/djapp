@@ -310,38 +310,37 @@ git add -A && git commit -m "message" && git push
 
 ---
 
-## Offene TODO-Liste (nach Priorität)
+### Phase 9: High-Priority-Optimierungen (5 Tickets)
 
-### 🔴 Hoch
+**Ziel:** 5 High-Priority-Probleme aus der TODO-Liste performance- und sicherheitsrelevant beheben.
 
-| # | Problem | Datei(en) |
-|---|---------|-----------|
-| 1 | **m.db wird 4–5× pro Sync kopiert** – `openEngineDb()` macht jedes Mal volles File I/O von USB | `EngineDJDatabase.kt:68-88` |
-| 2 | **`getLibraryStats()` lädt ALLE Tracks ins RAM** statt SQL-Aggregates (`COUNT`, `AVG`) | `DJLibraryDatabase.kt:131-149` |
-| 3 | **`fallbackToDestructiveMigration()` löscht alle User-Daten** bei Schema-Änderung | `DJLibraryDatabase.kt:52` |
-| 4 | **Scan-Cache in SharedPreferences** (>2 MB → `TransactionTooLargeException`) | `MusicScanner.kt:185-212` |
-| 5 | **M3U8-Fehler werden geschluckt** – silent catch bei Playlist-Export | `EngineDJSync.kt:288, 319` |
+| # | Problem | Fix | Datei(en) |
+|---|---------|-----|-----------|
+| 1 | m.db 4–5× pro Sync kopiert | `ensureTempDb()` mit `lastSourcePath`-Cache: Kopie nur beim ersten Zugriff pro Volume | `EngineDJDatabase.kt` |
+| 2 | `getLibraryStats()` lädt alle Tracks | 3 SQL-Aggregates (`getAnalyzedCount`, `getAvgBpm`, `getAvgLufs`) statt `getAll()` | `TrackDao.kt`, `DJLibraryDatabase.kt` |
+| 3 | `fallbackToDestructiveMigration()` | Explizite `MIGRATION_1_2` (droppt `loops`/`cue_points`/`beatgrids`) + Safety-Net | `DJLibraryDatabase.kt` |
+| 4 | Scan-Cache >2 MB in SharedPreferences | Dateibasierter Cache pro Root-Path in `cacheDir/music_scanner_cache/` | `MusicScanner.kt` |
+| 5 | M3U8 silent catches | `catch {}` → `Log.e("EngineDJSync", ...)` | `EngineDJSync.kt` |
 
-### 🟡 Mittel
+### Phase 10: Restliche TODO-Liste abgearbeitet (9 Tickets)
 
-| # | Problem | Datei(en) |
-|---|---------|-----------|
-| 6 | **19× `!!` (Non-Null Assertion)** – potenzielle NPEs in Screens | Alle Screens |
-| 7 | **9× leere `catch {}` Blöcke** – Exceptions werden verschluckt | `MainActivity.kt`, `MusicScanner.kt`, `EngineVolumeDetector.kt` u.a. |
-| 8 | **`PermissionLauncher`-Fehler stumm** – wenn Berechtigung fehlschlägt | `MainActivity.kt:75, 79` |
-
-### 🟢 Niedrig / Stil
-
-| # | Problem | Datei(en) |
-|---|---------|-----------|
-| 9 | **`android.enableJetifier=true`** ist deprecated | `gradle.properties:2` |
-| 10 | **Nur Dark Theme** – kein Light-Scheme definiert | `Theme.kt` |
-| 11 | **Wildcard-Imports** (`import ...*`) in allen Screens (42 Stellen) | Alle Screens + `CommonComponents.kt` |
-| 12 | **Mixed Float/Double** in Waveform-Berechnung | `WaveformGenerator.kt:75` |
-| 13 | **Vollqualifiziertes `Context`** (inkonsistent zu anderen Files) | `UsbStickPage.kt:61` |
-| 14 | **Fehler-Erkennung per String-Prefix** (`"Error:"`) – zerbrechlich bei i18n | `AnalysisProgressPage.kt:145` |
+| # | Problem | Fix | Datei(en) |
+|---|---------|-----|-----------|
+| 6 | 19× `!!` Non-Null Assertions | Ersetzt durch `?:` elvis / `?.let` / lokale vals | 7 Screen-Dateien, `Strings.kt` |
+| 7 | 9× leere `catch {}` Blöcke | `catch` → `Log.w(...)` in 3 Dateien (2× bereits in Phase 9 gefixt) | `MainActivity.kt`, `MusicScanner.kt`, `EngineVolumeDetector.kt` |
+| 8 | `PermissionLauncher` stumm | Callbacks loggen verweigerte Berechtigungen | `MainActivity.kt` |
+| 9 | `android.enableJetifier=true` deprecated | Zeile entfernt | `gradle.properties` |
+| 10 | Nur Dark Theme | `LightColorScheme` + `isSystemInDarkTheme()`-Auswahl | `Theme.kt`, `Color.kt` |
+| 11 | Wildcard-Imports (42 Stellen) | Alle `import ...*` durch explizite Imports ersetzt | 8 Dateien (7 Screens + CommonComponents) |
+| 12 | Mixed Float/Double in Waveform | `sample.toDouble() * sample` → konsistent `doubleSample * doubleSample` | `WaveformGenerator.kt` |
+| 13 | Vollqualifiziertes `Context` | `android.content.Context` → `Context` per Import | `UsbStickPage.kt` |
+| 14 | Fehlererkennung per String-Prefix | `result.startsWith(...)` → `Pair<String, Boolean>` mit `hadError`-Flag | `AnalysisProgressPage.kt` |
 
 ---
+
+## Offene TODO-Liste
+
+✅ **Alle 14 Tickets erledigt** – siehe Phasen 9+10.
 
 ## Chat-Verlauf
 

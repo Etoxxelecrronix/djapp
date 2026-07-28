@@ -2,14 +2,47 @@ package com.djapp.ui.screens
 
 import android.content.Context
 import android.net.Uri
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,7 +60,12 @@ import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.KeyBadge
-import com.djapp.ui.theme.*
+import com.djapp.ui.theme.CardBackground
+import com.djapp.ui.theme.ErrorRed
+import com.djapp.ui.theme.OnSurface
+import com.djapp.ui.theme.OnSurfaceVariant
+import com.djapp.ui.theme.Primary
+import com.djapp.ui.theme.SurfaceVariant
 import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -95,7 +133,8 @@ fun AnalysisProgressPage(folderPath: String) {
                 val plId = db.createPlaylist(playlistName)
                 val doneItems = items.filter { it.status == TrackStatus.DONE && it.trackId != null }
                 for ((pos, item) in doneItems.withIndex()) {
-                    db.addTrackToPlaylist(plId, item.trackId!!, pos)
+                    val tid = item.trackId ?: continue
+                    db.addTrackToPlaylist(plId, tid, pos)
                 }
             }
             showCreatePlaylistDialog = false
@@ -106,7 +145,7 @@ fun AnalysisProgressPage(folderPath: String) {
         scope.launch {
             isWritingToUsb = true
             usbWriteResult = null
-            val result = withContext(Dispatchers.IO) {
+            val (result, hadError) = withContext(Dispatchers.IO) {
                 var volumes = EngineVolumeDetector.detectUsbVolumes(context)
                 var usbVolume = volumes.firstOrNull()
                 if (usbVolume == null) {
@@ -118,11 +157,11 @@ fun AnalysisProgressPage(folderPath: String) {
                     }
                 }
                 if (usbVolume == null) {
-                    return@withContext Strings.t("engine.usb_not_found")
+                    return@withContext Pair(Strings.t("engine.usb_not_found"), true)
                 }
                 val doneItems = items.filter { it.status == TrackStatus.DONE }
                 if (doneItems.isEmpty()) {
-                    return@withContext Strings.t("engine.no_analyzed_tracks")
+                    return@withContext Pair(Strings.t("engine.no_analyzed_tracks"), true)
                 }
                 val tracks = doneItems.map { item ->
                     val filePath = if (item.uri.scheme == "file") {
@@ -136,13 +175,13 @@ fun AnalysisProgressPage(folderPath: String) {
                     context, usbVolume.path, tracks, playlistName
                 )
                 if (syncResult.errors.isNotEmpty()) {
-                    Strings.t("engine.write_error", syncResult.errors.joinToString(", "))
+                    Pair(Strings.t("engine.write_error", syncResult.errors.joinToString(", ")), true)
                 } else {
-                    Strings.t("engine.write_success", syncResult.tracksWritten)
+                    Pair(Strings.t("engine.write_success", syncResult.tracksWritten), false)
                 }
             }
             usbWriteResult = result
-            usbWriteHadError = result.startsWith(Strings.t("engine.write_error", "").substringBefore("%"))
+            usbWriteHadError = hadError
             isWritingToUsb = false
             showUsbWriteDialog = false
         }
@@ -304,7 +343,7 @@ fun AnalysisProgressPage(folderPath: String) {
                     if (usbWriteResult != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = usbWriteResult!!,
+                            text = usbWriteResult ?: "",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (usbWriteHadError) ErrorRed else Primary
                         )
@@ -378,10 +417,10 @@ fun AnalysisProgressPage(folderPath: String) {
                                     )
                                 }
                             }
-                            if (item.result?.bpm != null) BpmBadge(bpm = item.result.bpm!!)
-                            if (item.result?.camelotKey != null) {
+                            item.result?.bpm?.let { BpmBadge(bpm = it) }
+                            item.result?.camelotKey?.let { key ->
                                 Spacer(modifier = Modifier.width(4.dp))
-                                KeyBadge(key = item.result!!.camelotKey!!)
+                                KeyBadge(key = key)
                             }
                         }
                     }

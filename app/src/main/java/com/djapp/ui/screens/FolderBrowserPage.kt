@@ -2,13 +2,44 @@ package com.djapp.ui.screens
 
 import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.UsbOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,7 +53,11 @@ import com.djapp.scanner.ScanPhase
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.FolderListItem
 import com.djapp.ui.components.GreenButton
-import com.djapp.ui.theme.*
+import com.djapp.ui.theme.CardBackground
+import com.djapp.ui.theme.OnSurface
+import com.djapp.ui.theme.OnSurfaceVariant
+import com.djapp.ui.theme.Primary
+import com.djapp.ui.theme.SurfaceVariant
 import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -162,7 +197,7 @@ fun FolderBrowserPage(
                     ) {
                         Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(importMessage!!, color = Primary, style = MaterialTheme.typography.bodyMedium)
+                        Text(importMessage ?: "", color = Primary, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -208,13 +243,13 @@ fun FolderBrowserPage(
     if (showContextMenu && selectedFolder != null) {
         AlertDialog(
             onDismissRequest = { showContextMenu = false },
-            title = { Text(selectedFolder!!.name, color = OnSurface) },
+            title = { Text(selectedFolder?.name ?: "", color = OnSurface) },
             text = {
                 Column {
                     TextButton(
                         onClick = {
                             showContextMenu = false
-                            onNavigateToAnalysis(selectedFolder!!.path)
+                            selectedFolder?.let { onNavigateToAnalysis(it.path) }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -225,7 +260,7 @@ fun FolderBrowserPage(
                     TextButton(
                         onClick = {
                             showContextMenu = false
-                            importFolderAsPlaylist(selectedFolder!!)
+                            selectedFolder?.let { importFolderAsPlaylist(it) }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {

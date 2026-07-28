@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -23,11 +24,20 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> }
+    ) { grantResults ->
+        val denied = grantResults.filter { !it.value }
+        if (denied.isNotEmpty()) {
+            Log.w("MainActivity", "permissions denied: ${denied.keys.joinToString()}")
+        }
+    }
 
     private val manageStorageLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { _ -> }
+    ) { result ->
+        if (result.resultCode != RESULT_OK) {
+            Log.w("MainActivity", "manage storage permission denied")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,7 +86,9 @@ class MainActivity : ComponentActivity() {
                     try {
                         val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                         manageStorageLauncher.launch(intent)
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                            Log.w("MainActivity", "manage storage permission fallback failed")
+                        }
                 }
             }
         }

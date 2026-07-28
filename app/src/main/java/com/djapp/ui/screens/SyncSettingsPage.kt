@@ -5,12 +5,35 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -23,7 +46,12 @@ import com.djapp.engine.EngineVolume
 import com.djapp.engine.EngineVolumeDetector
 import com.djapp.i18n.Strings
 import com.djapp.ui.components.GreenButton
-import com.djapp.ui.theme.*
+import com.djapp.ui.theme.CardBackground
+import com.djapp.ui.theme.ErrorRed
+import com.djapp.ui.theme.OnSurface
+import com.djapp.ui.theme.OnSurfaceVariant
+import com.djapp.ui.theme.Primary
+import com.djapp.ui.theme.SurfaceVariant
 import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,7 +105,7 @@ fun SyncSettingsPage() {
 
         scope.launch {
             try {
-                val vol = usbVolume!!
+                val vol = usbVolume ?: return@launch
 
                 val allTracks = withContext(Dispatchers.IO) { db.trackDao().getAll() }
                 syncProgress = 0.2f
@@ -168,7 +196,7 @@ fun SyncSettingsPage() {
                         )
                     }
                     Text(
-                        text = "${usbVolume!!.label} (${usbVolume!!.path})",
+                        text = usbVolume?.let { "${it.label} (${it.path})" } ?: "",
                         style = MaterialTheme.typography.bodySmall,
                         color = OnSurfaceVariant
                     )
@@ -299,7 +327,7 @@ fun SyncSettingsPage() {
 
         if (syncMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = syncMessage!!, style = MaterialTheme.typography.bodySmall, color = ErrorRed)
+            Text(text = syncMessage ?: "", style = MaterialTheme.typography.bodySmall, color = ErrorRed)
         }
 
         if (isSyncing) {

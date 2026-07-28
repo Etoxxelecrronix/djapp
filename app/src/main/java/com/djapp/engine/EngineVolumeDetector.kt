@@ -1,6 +1,7 @@
 package com.djapp.engine
 
 import android.content.Context
+import android.util.Log
 import com.djapp.i18n.Strings
 import java.io.File
 
@@ -43,7 +44,8 @@ object EngineVolumeDetector {
         if (hasEngineLibrary) {
             try {
                 trackCount = EngineDJDatabase.trackCount(context, path)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w("EngineVolDetect", "trackCount failed for $path", e)
             }
         }
 

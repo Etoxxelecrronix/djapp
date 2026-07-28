@@ -63,4 +63,13 @@ interface TrackDao {
 
     @Query("SELECT COUNT(*) FROM tracks")
     suspend fun getCount(): Int
+
+    @Query("SELECT COUNT(*) FROM tracks WHERE is_analyzed = 1")
+    suspend fun getAnalyzedCount(): Int
+
+    @Query("SELECT AVG(bpm) FROM tracks WHERE bpm > 0")
+    suspend fun getAvgBpm(): Double?
+
+    @Query("SELECT AVG(lufs) FROM tracks WHERE lufs IS NOT NULL")
+    suspend fun getAvgLufs(): Double?
 }

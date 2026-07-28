@@ -71,8 +71,9 @@ object WaveformGenerator {
                 val lo = bytes[pos].toInt() and 0xFF
                 val hi = bytes[pos + 1].toInt()
                 val sample = ((hi shl 8) or lo).toShort().toFloat() / 32768f
-                val absV = abs(sample.toDouble())
-                sumSq += sample.toDouble() * sample
+                val doubleSample = sample.toDouble()
+                val absV = abs(doubleSample)
+                sumSq += doubleSample * doubleSample
                 if (absV > peak) peak = absV
                 pos += bytesPerSample
             }

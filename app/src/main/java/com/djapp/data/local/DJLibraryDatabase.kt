@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.djapp.data.local.dao.AnalysisDao
 import com.djapp.data.local.dao.PlaylistDao
 import com.djapp.data.local.dao.TrackDao
@@ -42,6 +44,12 @@ abstract class DJLibraryDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: DJLibraryDatabase? = null
 
+        private val MIGRATION_1_2 = Migration(1, 2) { db ->
+            db.execSQL("DROP TABLE IF EXISTS loops")
+            db.execSQL("DROP TABLE IF EXISTS cue_points")
+            db.execSQL("DROP TABLE IF EXISTS beatgrids")
+        }
+
         fun getInstance(context: Context): DJLibraryDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -49,6 +57,7 @@ abstract class DJLibraryDatabase : RoomDatabase() {
                     DJLibraryDatabase::class.java,
                     "dj_library_v1.db",
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
@@ -132,19 +141,12 @@ abstract class DJLibraryDatabase : RoomDatabase() {
         val trackDao = trackDao()
         val playlistDao = playlistDao()
 
-        val totalTracks = trackDao.getCount()
-        val allTracks = trackDao.getAll()
-        val analyzedTracks = allTracks.count { it.isAnalyzed }
-        val totalPlaylists = playlistDao.getPlaylistCount()
-        val avgBpm = allTracks.mapNotNull { it.bpm }.filter { it > 0 }.takeIf { it.isNotEmpty() }?.average()
-        val avgLufs = allTracks.mapNotNull { it.lufs }.takeIf { it.isNotEmpty() }?.average()
-
         return LibraryStats(
-            totalTracks = totalTracks,
-            analyzedTracks = analyzedTracks,
-            totalPlaylists = totalPlaylists,
-            avgBpm = avgBpm,
-            avgLufs = avgLufs,
+            totalTracks = trackDao.getCount(),
+            analyzedTracks = trackDao.getAnalyzedCount(),
+            totalPlaylists = playlistDao.getPlaylistCount(),
+            avgBpm = trackDao.getAvgBpm(),
+            avgLufs = trackDao.getAvgLufs(),
         )
     }
 

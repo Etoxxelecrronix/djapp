@@ -1,6 +1,7 @@
 package com.djapp.engine
 
 import android.content.Context
+import android.util.Log
 import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.TrackEntity
 import com.djapp.i18n.Strings
@@ -285,7 +286,8 @@ object EngineDJSync {
                     w.write("$path\n")
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("EngineDJSync", "M3U8 write failed for $playlistName", e)
         }
     }
 
@@ -316,7 +318,8 @@ object EngineDJSync {
                         w.write("${t.path}\n")
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("EngineDJSync", "M3U8 write failed for ${playlist.title}", e)
             }
         }
     }

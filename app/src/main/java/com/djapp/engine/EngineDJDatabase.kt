@@ -65,20 +65,28 @@ object EngineDJDatabase {
         return File(dir, "engine_m.db").absolutePath
     }
 
-    fun openEngineDb(context: Context, volumePath: String): SQLiteDatabase? {
-        return try {
-            val sourcePath = File(volumePath, ENGINE_DB_RELATIVE)
-            val tempPath = getTempDbPath(context)
+    private var lastSourcePath: String? = null
 
-            if (sourcePath.exists()) {
-                FileInputStream(sourcePath).use { input ->
-                    FileOutputStream(tempPath).use { output ->
-                        input.copyTo(output)
-                    }
+    private fun ensureTempDb(context: Context, volumePath: String) {
+        val sourcePath = File(volumePath, ENGINE_DB_RELATIVE)
+        val tempPath = File(getTempDbPath(context))
+
+        if (lastSourcePath == volumePath && tempPath.exists()) return
+
+        if (sourcePath.exists()) {
+            FileInputStream(sourcePath).use { input ->
+                FileOutputStream(tempPath).use { output ->
+                    input.copyTo(output)
                 }
             }
+        }
+        lastSourcePath = volumePath
+    }
 
-            val db = SQLiteDatabase.openOrCreateDatabase(tempPath, null)
+    fun openEngineDb(context: Context, volumePath: String): SQLiteDatabase? {
+        return try {
+            ensureTempDb(context, volumePath)
+            val db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
             bootstrapEngineSchema(db)
             db
         } catch (e: Exception) {
