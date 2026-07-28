@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.djapp.data.local.DJLibraryDatabase
+import com.djapp.i18n.Strings
 import com.djapp.scanner.FolderStat
 import com.djapp.scanner.MusicScanner
 import com.djapp.scanner.ScanPhase
@@ -22,6 +23,7 @@ import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.FolderListItem
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.theme.*
+import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -42,25 +44,25 @@ fun FolderBrowserPage(
     var folders by remember { mutableStateOf<List<FolderStat>>(emptyList()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
 
-    val prefs = remember { context.getSharedPreferences("dj_usb_selected", Context.MODE_PRIVATE) }
-    val selectedPath = prefs.getString("usb_selected_path", null) ?: ""
+    val prefs = remember { context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    val selectedPath = prefs.getString(PrefsKeys.SELECTED_PATH, null) ?: ""
 
     fun doScan() {
         if (selectedPath.isBlank()) return
         isScanning = true
-        scanProgress = "Scanne..."
+        scanProgress = Strings.t("usb.scanning")
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 MusicScanner.scanMusicLibrary(context, selectedPath) { progress ->
                     scanProgress = if (progress.phase == ScanPhase.DONE)
-                        "${progress.found} Tracks gefunden"
+                        "${progress.found} ${Strings.t("home.tracks")}"
                     else
-                        "Scanne: ${progress.currentPath}"
+                        "${Strings.t("folders.scan")}: ${progress.currentPath}"
                 }
             }
             folders = result.folders
             isScanning = false
-            scanProgress = "${result.totalTracks} Tracks in ${result.folders.size} Ordnern"
+            scanProgress = Strings.t("folders.tracks_count", result.totalTracks) + " in ${result.folders.size} ${Strings.t("nav.folders").lowercase()}"
         }
     }
 
@@ -72,7 +74,7 @@ fun FolderBrowserPage(
                 }
                 db.importFolderAsPlaylist(folder.name, tracks)
             }
-            importMessage = "\"${folder.name}\" als Playlist importiert"
+            importMessage = "\"${folder.name}\" ${Strings.t("playlists.sync")}"
         }
     }
 
@@ -90,7 +92,7 @@ fun FolderBrowserPage(
             .padding(16.dp)
     ) {
         Text(
-            text = "Ordner durchsuchen",
+            text = Strings.t("folders.title"),
             style = MaterialTheme.typography.headlineMedium,
             color = OnSurface,
             fontWeight = FontWeight.Bold
@@ -99,7 +101,7 @@ fun FolderBrowserPage(
         if (selectedPath.isBlank()) {
             Spacer(modifier = Modifier.height(12.dp))
             EmptyState(
-                message = "Kein Speichermedium ausgewählt. Bitte unter Speichermedium eines auswählen.",
+                message = Strings.t("usb.no_devices"),
                 icon = Icons.Default.UsbOff
             )
         } else {
@@ -115,12 +117,12 @@ fun FolderBrowserPage(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Ordner suchen...") },
+                label = { Text(Strings.t("folders.search")) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Löschen")
+                            Icon(Icons.Default.Clear, contentDescription = null)
                         }
                     }
                 },
@@ -140,7 +142,7 @@ fun FolderBrowserPage(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GreenButton(
-                    text = if (isScanning) scanProgress else "Neu scannen",
+                    text = if (isScanning) scanProgress else Strings.t("folders.scan"),
                     onClick = { doScan() },
                     enabled = !isScanning
                 )
@@ -177,7 +179,7 @@ fun FolderBrowserPage(
 
             if (filteredFolders.isEmpty() && !isScanning) {
                 EmptyState(
-                    message = if (searchQuery.isNotBlank()) "Keine Ordner gefunden" else "Keine Ordner vorhanden",
+                    message = if (searchQuery.isNotBlank()) Strings.t("folders.search") else Strings.t("folders.empty"),
                     icon = Icons.Default.FolderOff
                 )
             } else {
@@ -218,7 +220,7 @@ fun FolderBrowserPage(
                     ) {
                         Icon(Icons.Default.Analytics, contentDescription = null, tint = Primary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Ordner analysieren", color = OnSurface)
+                        Text(Strings.t("folders.analyze"), color = OnSurface)
                     }
                     TextButton(
                         onClick = {
@@ -229,14 +231,14 @@ fun FolderBrowserPage(
                     ) {
                         Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = Primary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Als Playlist importieren", color = OnSurface)
+                        Text(Strings.t("folders.create_playlist"), color = OnSurface)
                     }
                 }
             },
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showContextMenu = false }) {
-                    Text("Abbrechen", color = Primary)
+                    Text(Strings.t("common.cancel"), color = Primary)
                 }
             },
             containerColor = CardBackground

@@ -162,10 +162,15 @@ object AudioAnalyzer {
         val flacMeta = FlacParser.parseFLAC(bytes) ?: return createEmptyResult(uri, filename, "flac")
         onProgress?.invoke(0.3f)
 
-        val waveform = WaveformGenerator.computeWaveform(
-            FloatArray(200) { ((it.toFloat() / 200) * 2 - 1) * 0.5f }, // placeholder for compressed
-            200
-        )
+        val dataOffset = FlacParser.findAudioDataOffset(bytes)
+        val waveform = if (dataOffset >= 0) {
+            WaveformGenerator.compressedWaveform(bytes, dataOffset, 200)
+        } else {
+            WaveformGenerator.computeWaveform(
+                FloatArray(200) { ((it.toFloat() / 200) * 2 - 1) * 0.5f },
+                200
+            )
+        }
         onProgress?.invoke(1.0f)
 
         return AnalysisResult(

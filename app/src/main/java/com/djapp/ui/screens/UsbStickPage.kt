@@ -29,12 +29,10 @@ import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.OutlinedGreenButton
 import com.djapp.ui.theme.*
+import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private const val PREFS_NAME = "dj_usb_selected"
-private const val KEY_SELECTED_PATH = "usb_selected_path"
 
 /** Resolves a SAF tree URI (from ACTION_OPEN_DOCUMENT_TREE) to a real file path. */
 private fun resolveSafTreeUri(uri: android.net.Uri): String? {
@@ -60,10 +58,10 @@ private fun resolveSafTreeUri(uri: android.net.Uri): String? {
 fun UsbStickPage() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val prefs = remember { context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences(PrefsKeys.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
 
     var volumes by remember { mutableStateOf(emptyList<EngineVolume>()) }
-    var selectedPath by remember { mutableStateOf(prefs.getString(KEY_SELECTED_PATH, null) ?: "") }
+    var selectedPath by remember { mutableStateOf(prefs.getString(PrefsKeys.SELECTED_PATH, null) ?: "") }
     var isScanning by remember { mutableStateOf(false) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -74,7 +72,7 @@ fun UsbStickPage() {
                 val realPath = resolveSafTreeUri(uri)
                 if (realPath != null) {
                     selectedPath = realPath
-                    prefs.edit().putString(KEY_SELECTED_PATH, realPath).apply()
+                    prefs.edit().putString(PrefsKeys.SELECTED_PATH, realPath).apply()
                 }
             }
         }
@@ -93,7 +91,7 @@ fun UsbStickPage() {
 
     fun selectVolume(volume: EngineVolume) {
         selectedPath = volume.path
-        prefs.edit().putString(KEY_SELECTED_PATH, volume.path).apply()
+        prefs.edit().putString(PrefsKeys.SELECTED_PATH, volume.path).apply()
     }
 
     LaunchedEffect(Unit) {

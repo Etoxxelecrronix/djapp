@@ -17,10 +17,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+
 import com.djapp.data.local.DJLibraryDatabase
+import com.djapp.i18n.Strings
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.OutlinedGreenButton
 import com.djapp.ui.theme.*
+import com.djapp.util.PrefsKeys
 
 @Composable
 fun HomePage(
@@ -32,14 +35,17 @@ fun HomePage(
     var totalTracks by remember { mutableIntStateOf(0) }
     var analyzedTracks by remember { mutableIntStateOf(0) }
     var playlistCount by remember { mutableIntStateOf(0) }
+    var hasUsbPath by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE) }
     LaunchedEffect(Unit) {
         val db = DJLibraryDatabase.getInstance(context)
         val stats = db.getLibraryStats()
         totalTracks = stats.totalTracks
         analyzedTracks = stats.analyzedTracks
         playlistCount = stats.totalPlaylists
+        hasUsbPath = prefs.getString(PrefsKeys.SELECTED_PATH, null).isNullOrBlank().not()
     }
 
     Box(
@@ -78,14 +84,14 @@ fun HomePage(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "DJ Engine",
+                text = Strings.t("home.title"),
                 style = MaterialTheme.typography.displayLarge,
                 color = OnSurface,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                text = "Music Library Manager",
+                text = Strings.t("home.subtitle"),
                 style = MaterialTheme.typography.bodyLarge,
                 color = OnSurfaceVariant
             )
@@ -93,28 +99,29 @@ fun HomePage(
             Spacer(modifier = Modifier.height(32.dp))
 
             GreenButton(
-                text = "Speichermedium auswählen",
+                text = Strings.t("home.select_usb"),
                 onClick = onNavigateToUsbStick
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedGreenButton(
-                text = "Ordner durchsuchen",
+                text = Strings.t("home.browse_folders"),
                 onClick = onNavigateToFolders
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedGreenButton(
-                text = "Analyse starten",
-                onClick = onNavigateToAnalysis
+                text = Strings.t("home.start_analysis"),
+                onClick = { if (hasUsbPath) onNavigateToAnalysis() else onNavigateToUsbStick() },
+                enabled = hasUsbPath
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedGreenButton(
-                text = "Bibliothek",
+                text = Strings.t("home.library"),
                 onClick = onNavigateToLibrary
             )
 
@@ -129,7 +136,7 @@ fun HomePage(
                     modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        text = "Bibliothek",
+                        text = Strings.t("home.library"),
                         style = MaterialTheme.typography.titleMedium,
                         color = OnSurface,
                         fontWeight = FontWeight.SemiBold
@@ -139,9 +146,9 @@ fun HomePage(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        StatItem(label = "Tracks", value = "$totalTracks", icon = Icons.Default.MusicNote)
-                        StatItem(label = "Analysiert", value = "$analyzedTracks", icon = Icons.Default.Analytics)
-                        StatItem(label = "Playlists", value = "$playlistCount", icon = Icons.Default.PlaylistPlay)
+                        StatItem(label = Strings.t("home.tracks"), value = "$totalTracks", icon = Icons.Default.MusicNote)
+                        StatItem(label = Strings.t("home.analyzed"), value = "$analyzedTracks", icon = Icons.Default.Analytics)
+                        StatItem(label = Strings.t("home.playlists_count"), value = "$playlistCount", icon = Icons.Default.PlaylistPlay)
                     }
                 }
             }

@@ -1,6 +1,8 @@
 package com.djapp.analysis.parsers
 
 import com.djapp.analysis.PCMData
+import com.djapp.analysis.parsers.ParserUtils.readUint16LE
+import com.djapp.analysis.parsers.ParserUtils.readUint32LE
 
 object WavParser {
 
@@ -122,16 +124,4 @@ object WavParser {
         )
     }
 
-    private fun readUint16LE(bytes: ByteArray, offset: Int): Short {
-        if (offset + 1 >= bytes.size) return 0
-        return ((bytes[offset + 1].toInt() shl 8) or (bytes[offset].toInt() and 0xFF)).toShort()
-    }
-
-    private fun readUint32LE(bytes: ByteArray, offset: Int): Int {
-        if (offset + 3 >= bytes.size) return 0
-        return (bytes[offset].toInt() and 0xFF) or
-                ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
-                ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
-                ((bytes[offset + 3].toInt() and 0xFF) shl 24)
-    }
 }

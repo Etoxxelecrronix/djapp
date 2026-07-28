@@ -2,7 +2,6 @@ package com.djapp.ui.screens
 
 import android.content.Context
 import android.net.Uri
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,11 +22,13 @@ import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolumeDetector
 import com.djapp.scanner.MusicScanner
+import com.djapp.i18n.Strings
 import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.components.KeyBadge
 import com.djapp.ui.theme.*
+import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,13 +40,13 @@ fun AnalysisProgressPage(folderPath: String) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { DJLibraryDatabase.getInstance(context) }
-    var isPaused by remember { mutableStateOf(false) }
     var isStarted by remember { mutableStateOf(false) }
     var scanMessage by remember { mutableStateOf("") }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showUsbWriteDialog by remember { mutableStateOf(false) }
     var usbWriteResult by remember { mutableStateOf<String?>(null) }
     var isWritingToUsb by remember { mutableStateOf(false) }
+    var usbWriteHadError by remember { mutableStateOf(false) }
 
     val queueState by AnalysisQueue.queue.collectAsState()
     val items = queueState.values.sortedBy { it.status != TrackStatus.QUEUED }
@@ -60,31 +60,20 @@ fun AnalysisProgressPage(folderPath: String) {
     val analyzedBpm = items.mapNotNull { it.result?.bpm }
     val analyzedKeys = items.mapNotNull { it.result?.camelotKey }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "progress")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
     fun startAnalysis() {
         if (folderPath.isBlank()) return
         isStarted = true
         scope.launch {
-            scanMessage = "Scanne Ordner..."
+            scanMessage = Strings.t("folders.scan")
             val scanResult = withContext(Dispatchers.IO) {
                 MusicScanner.scanMusicLibrary(context, folderPath) { }
             }
             if (scanResult.totalTracks == 0) {
-                scanMessage = "Keine Tracks gefunden"
+                scanMessage = Strings.t("folders.empty")
                 isStarted = false
                 return@launch
             }
-            scanMessage = "${scanResult.totalTracks} Tracks gefunden, starte Analyse..."
+            scanMessage = Strings.t("analysis.total") + ": ${scanResult.totalTracks} ${Strings.t("home.tracks")}"
             val trackPairs = scanResult.folders.flatMap { folder ->
                 folder.tracks.map { scanTrack ->
                     val file = File(scanTrack.path)
@@ -121,19 +110,19 @@ fun AnalysisProgressPage(folderPath: String) {
                 var volumes = EngineVolumeDetector.detectUsbVolumes(context)
                 var usbVolume = volumes.firstOrNull()
                 if (usbVolume == null) {
-                    val prefs = context.getSharedPreferences("dj_usb_selected", Context.MODE_PRIVATE)
-                    val manualPath = prefs.getString("usb_selected_path", null)
+                    val prefs = context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE)
+                    val manualPath = prefs.getString(PrefsKeys.SELECTED_PATH, null)
                     if (!manualPath.isNullOrBlank()) {
                         val manualVol = EngineVolumeDetector.detectVolumeAtPath(context, manualPath)
                         if (manualVol != null) usbVolume = manualVol
                     }
                 }
                 if (usbVolume == null) {
-                    return@withContext "Kein USB-Stick gefunden"
+                    return@withContext Strings.t("engine.usb_not_found")
                 }
                 val doneItems = items.filter { it.status == TrackStatus.DONE }
                 if (doneItems.isEmpty()) {
-                    return@withContext "Keine analysierten Tracks gefunden"
+                    return@withContext Strings.t("engine.no_analyzed_tracks")
                 }
                 val tracks = doneItems.map { item ->
                     val filePath = if (item.uri.scheme == "file") {
@@ -147,12 +136,13 @@ fun AnalysisProgressPage(folderPath: String) {
                     context, usbVolume.path, tracks, playlistName
                 )
                 if (syncResult.errors.isNotEmpty()) {
-                    "Fehler: ${syncResult.errors.joinToString(", ")}"
+                    Strings.t("engine.write_error", syncResult.errors.joinToString(", "))
                 } else {
-                    "${syncResult.tracksWritten} Tracks + Playlist auf USB geschrieben"
+                    Strings.t("engine.write_success", syncResult.tracksWritten)
                 }
             }
             usbWriteResult = result
+            usbWriteHadError = result.startsWith(Strings.t("engine.write_error", "").substringBefore("%"))
             isWritingToUsb = false
             showUsbWriteDialog = false
         }
@@ -164,13 +154,13 @@ fun AnalysisProgressPage(folderPath: String) {
             .padding(16.dp)
     ) {
         Text(
-            text = "Analyse",
+            text = Strings.t("analysis.title"),
             style = MaterialTheme.typography.headlineMedium,
             color = OnSurface,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = folderPath.ifBlank { "Alle Ordner" },
+            text = folderPath.ifBlank { Strings.t("folders.title") },
             style = MaterialTheme.typography.bodySmall,
             color = OnSurfaceVariant
         )
@@ -193,8 +183,7 @@ fun AnalysisProgressPage(folderPath: String) {
                         CircularProgressIndicator(
                             progress = { overallProgress },
                             modifier = Modifier
-                                .size(100.dp)
-                                .rotate(if (isPaused) 0f else rotation),
+                                .size(100.dp),
                             color = Primary,
                             trackColor = SurfaceVariant,
                             strokeWidth = 8.dp
@@ -220,21 +209,21 @@ fun AnalysisProgressPage(folderPath: String) {
 
                 if (totalCount > 0) {
                     Text(
-                        text = "$doneCount / $totalCount Tracks analysiert",
+                        text = "$doneCount / $totalCount ${Strings.t("home.tracks")}",
                         style = MaterialTheme.typography.titleMedium,
                         color = OnSurface,
                         fontWeight = FontWeight.SemiBold
                     )
                     if (errorCount > 0) {
                         Text(
-                            text = "$errorCount Fehler",
+                            text = "$errorCount ${Strings.t("analysis.error")}",
                             style = MaterialTheme.typography.bodySmall,
                             color = ErrorRed
                         )
                     }
                 } else {
                     Text(
-                        text = scanMessage.ifBlank { "Bereit zur Analyse" },
+                        text = scanMessage.ifBlank { Strings.t("analysis.title") },
                         style = MaterialTheme.typography.titleMedium,
                         color = OnSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
@@ -246,28 +235,11 @@ fun AnalysisProgressPage(folderPath: String) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (!isStarted || !isRunning) {
                         GreenButton(
-                            text = "Analyse starten",
+                            text = Strings.t("home.start_analysis"),
                             onClick = { startAnalysis() },
                             enabled = folderPath.isNotBlank()
                         )
                     } else {
-                        FilledTonalButton(
-                            onClick = { isPaused = !isPaused },
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = if (isPaused) Primary else BpmBadge,
-                                contentColor = Secondary
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(
-                                if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(if (isPaused) "Fortsetzen" else "Pause")
-                        }
-
                         OutlinedButton(
                             onClick = { stopAnalysis() },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
@@ -275,7 +247,7 @@ fun AnalysisProgressPage(folderPath: String) {
                         ) {
                             Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Stopp")
+                            Text(Strings.t("analysis.stop"))
                         }
                     }
                 }
@@ -292,14 +264,14 @@ fun AnalysisProgressPage(folderPath: String) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Analyse abgeschlossen",
+                        text = Strings.t("analysis.complete"),
                         style = MaterialTheme.typography.titleMedium,
                         color = Primary,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Tracks analysiert: $doneCount",
+                        text = "${Strings.t("home.analyzed")}: $doneCount",
                         style = MaterialTheme.typography.bodyMedium,
                         color = OnSurface
                     )
@@ -319,7 +291,7 @@ fun AnalysisProgressPage(folderPath: String) {
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     GreenButton(
-                        text = "Auf USB schreiben",
+                        text = Strings.t("playlists.sync"),
                         onClick = { showUsbWriteDialog = true }
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -327,14 +299,14 @@ fun AnalysisProgressPage(folderPath: String) {
                         onClick = { showCreatePlaylistDialog = true },
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Lokal speichern", color = OnSurfaceVariant)
+                        Text(Strings.t("common.save"), color = OnSurfaceVariant)
                     }
                     if (usbWriteResult != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = usbWriteResult!!,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (usbWriteResult!!.startsWith("Fehler")) ErrorRed else Primary
+                            color = if (usbWriteHadError) ErrorRed else Primary
                         )
                     }
                 }
@@ -344,7 +316,7 @@ fun AnalysisProgressPage(folderPath: String) {
 
         if (items.isEmpty()) {
             EmptyState(
-                message = if (isStarted) "Lade Tracks..." else "Noch keine Tracks in der Warteschlange",
+                message = if (isStarted) Strings.t("common.loading") else Strings.t("analysis.queued"),
                 icon = Icons.Default.QueueMusic
             )
         } else {
@@ -422,12 +394,12 @@ fun AnalysisProgressPage(folderPath: String) {
         var playlistName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showCreatePlaylistDialog = false },
-            title = { Text("Playlist erstellen", color = OnSurface) },
+            title = { Text(Strings.t("playlists.create"), color = OnSurface) },
             text = {
                 OutlinedTextField(
                     value = playlistName,
                     onValueChange = { playlistName = it },
-                    label = { Text("Playlist-Name") },
+                    label = { Text(Strings.t("playlists.create_prompt")) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -443,12 +415,12 @@ fun AnalysisProgressPage(folderPath: String) {
                 TextButton(
                     onClick = { if (playlistName.isNotBlank()) createPlaylistFromAnalyzedTracks(playlistName) }
                 ) {
-                    Text("Erstellen", color = Primary)
+                    Text(Strings.t("playlists.save"), color = Primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCreatePlaylistDialog = false }) {
-                    Text("Abbrechen", color = Primary)
+                    Text(Strings.t("common.cancel"), color = Primary)
                 }
             },
             containerColor = CardBackground
@@ -459,11 +431,11 @@ fun AnalysisProgressPage(folderPath: String) {
         var playlistName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showUsbWriteDialog = false },
-            title = { Text("Auf USB schreiben", color = OnSurface) },
+            title = { Text(Strings.t("playlists.sync"), color = OnSurface) },
             text = {
                 Column {
                     Text(
-                        text = "Schreibt die analysierten Tracks und eine Playlist in die Engine DJ m.db auf dem USB-Stick.",
+                        text = Strings.t("sync.compatibility"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = OnSurfaceVariant
                     )
@@ -471,7 +443,7 @@ fun AnalysisProgressPage(folderPath: String) {
                     OutlinedTextField(
                         value = playlistName,
                         onValueChange = { playlistName = it },
-                        label = { Text("Playlist-Name") },
+                    label = { Text(Strings.t("playlists.create_prompt")) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -493,12 +465,12 @@ fun AnalysisProgressPage(folderPath: String) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Primary, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(4.dp))
                     }
-                    Text("Schreiben", color = Primary)
+                    Text(Strings.t("common.save"), color = Primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showUsbWriteDialog = false }, enabled = !isWritingToUsb) {
-                    Text("Abbrechen", color = Primary)
+                    Text(Strings.t("common.cancel"), color = Primary)
                 }
             },
             containerColor = CardBackground

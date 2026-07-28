@@ -1,6 +1,7 @@
 package com.djapp.engine
 
 import android.content.Context
+import com.djapp.i18n.Strings
 import java.io.File
 
 data class EngineVolume(
@@ -16,22 +17,14 @@ enum class VolumeType { SD, USB, INTERNAL }
 object EngineVolumeDetector {
 
     private val USB_PATHS = listOf(
-        "/storage/usb0" to "USB-Stick",
-        "/storage/usb1" to "USB-Stick 1",
-        "/storage/usbdisk" to "USB-Stick",
-        "/storage/UsbDriveA" to "USB-Stick A",
-        "/storage/UsbDriveB" to "USB-Stick B",
-        "/mnt/usb_storage" to "USB-Speicher",
-        "/mnt/usb" to "USB",
-        "/mnt/media_rw/usb0" to "USB (usb0)",
-        "/mnt/media_rw/usb1" to "USB (usb1)",
-        "/mnt/media_rw/udisk0" to "USB-Disk 0",
-        "/mnt/media_rw/udisk1" to "USB-Disk 1",
-        "/storage/usb" to "USB-Stick",
+        "/storage/usb0", "/storage/usb1", "/storage/usbdisk",
+        "/storage/UsbDriveA", "/storage/UsbDriveB", "/mnt/usb_storage",
+        "/mnt/usb", "/mnt/media_rw/usb0", "/mnt/media_rw/usb1",
+        "/mnt/media_rw/udisk0", "/mnt/media_rw/udisk1", "/storage/usb",
     )
 
     private val INTERNAL_PATHS = listOf(
-        "/storage/emulated/0" to "Interner Speicher",
+        "/storage/emulated/0" to "",
     )
 
     private fun detectVolume(
@@ -65,10 +58,10 @@ object EngineVolumeDetector {
 
     suspend fun detectVolumeAtPath(context: Context, path: String): EngineVolume? {
         val label = when {
-            path.startsWith("/storage/emulated") -> "Interner Speicher"
-            path.startsWith("/storage/") -> "USB-Stick (manuell)"
-            path.startsWith("/mnt/") -> "USB-Stick (manuell)"
-            else -> "Ordner"
+            path.startsWith("/storage/emulated") -> Strings.t("volume.internal")
+            path.startsWith("/storage/") -> Strings.t("volume.usb_manual")
+            path.startsWith("/mnt/") -> Strings.t("volume.usb_manual")
+            else -> Strings.t("volume.folder")
         }
         val type = if (path.startsWith("/storage/emulated")) VolumeType.INTERNAL else VolumeType.USB
         return detectVolume(context, path, label, type)
@@ -77,8 +70,8 @@ object EngineVolumeDetector {
     suspend fun detectUsbVolumes(context: Context): List<EngineVolume> {
         val found = mutableListOf<EngineVolume>()
 
-        for ((path, label) in USB_PATHS) {
-            detectVolume(context, path, label, VolumeType.USB)?.let { found.add(it) }
+        for (path in USB_PATHS) {
+            detectVolume(context, path, path.split("/").last(), VolumeType.USB)?.let { found.add(it) }
         }
 
         return found
@@ -87,12 +80,12 @@ object EngineVolumeDetector {
     suspend fun detectAllVolumes(context: Context): List<EngineVolume> {
         val found = mutableListOf<EngineVolume>()
 
-        for ((path, label) in USB_PATHS) {
-            detectVolume(context, path, label, VolumeType.USB)?.let { found.add(it) }
+        for (path in USB_PATHS) {
+            detectVolume(context, path, path.split("/").last(), VolumeType.USB)?.let { found.add(it) }
         }
 
-        for ((path, label) in INTERNAL_PATHS) {
-            detectVolume(context, path, label, VolumeType.INTERNAL)?.let { found.add(it) }
+        for ((path, _) in INTERNAL_PATHS) {
+            detectVolume(context, path, Strings.t("volume.internal"), VolumeType.INTERNAL)?.let { found.add(it) }
         }
 
         return found

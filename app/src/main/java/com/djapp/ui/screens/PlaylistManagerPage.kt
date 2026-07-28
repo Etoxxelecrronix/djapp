@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.data.local.dao.PlaylistWithCount
 import com.djapp.data.local.entity.TrackEntity
+import com.djapp.i18n.Strings
 import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
@@ -83,7 +84,7 @@ fun PlaylistManagerPage() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Playlists",
+                text = Strings.t("playlists.title"),
                 style = MaterialTheme.typography.headlineMedium,
                 color = OnSurface,
                 fontWeight = FontWeight.Bold
@@ -98,7 +99,7 @@ fun PlaylistManagerPage() {
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Neu", fontWeight = FontWeight.Bold)
+                Text(Strings.t("playlists.create"), fontWeight = FontWeight.Bold)
             }
         }
 
@@ -116,7 +117,7 @@ fun PlaylistManagerPage() {
                             selectedPlaylist = null
                             selectedPlaylistTracks = emptyList()
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Zurück", tint = Primary)
+                            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Primary)
                         }
                         Text(
                             text = selectedPlaylist!!.title,
@@ -128,7 +129,7 @@ fun PlaylistManagerPage() {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GreenButton(
-                            text = "Tracks hinzufügen",
+                            text = Strings.t("library.add_to_playlist"),
                             onClick = {
                                 loadAllTracks()
                                 showAddTracksDialog = true
@@ -136,8 +137,8 @@ fun PlaylistManagerPage() {
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedGreenButton(
-                            text = "Sync zu Speichermedium",
-                            onClick = { /* sync via EngineDJSync */ },
+                            text = Strings.t("playlists.sync"),
+                            onClick = { },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -148,7 +149,7 @@ fun PlaylistManagerPage() {
 
             if (selectedPlaylistTracks.isEmpty()) {
                 EmptyState(
-                    message = "Keine Tracks in dieser Playlist",
+                    message = Strings.t("playlists.empty"),
                     icon = Icons.Default.QueueMusic
                 )
             } else {
@@ -180,7 +181,7 @@ fun PlaylistManagerPage() {
         } else {
             if (playlists.isEmpty()) {
                 EmptyState(
-                    message = "Keine Playlists vorhanden",
+                    message = Strings.t("playlists.empty"),
                     icon = Icons.Default.QueueMusic
                 )
             } else {
@@ -225,10 +226,10 @@ fun PlaylistManagerPage() {
                                             refreshPlaylists()
                                         }
                                     }) {
-                                        Icon(Icons.Default.Check, contentDescription = "Speichern", tint = Primary)
+                                        Icon(Icons.Default.Check, contentDescription = Strings.t("common.save"), tint = Primary)
                                     }
                                     IconButton(onClick = { editingPlaylistId = null }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Abbrechen", tint = ErrorRed)
+                                        Icon(Icons.Default.Close, contentDescription = Strings.t("common.cancel"), tint = ErrorRed)
                                     }
                                 }
                             }
@@ -257,12 +258,12 @@ fun PlaylistManagerPage() {
         var newTitle by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
-            title = { Text("Neue Playlist", color = OnSurface) },
+            title = { Text(Strings.t("playlists.create"), color = OnSurface) },
             text = {
                 OutlinedTextField(
                     value = newTitle,
                     onValueChange = { newTitle = it },
-                    label = { Text("Titel") },
+                    label = { Text(Strings.t("playlists.create_prompt")) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Primary,
@@ -287,12 +288,12 @@ fun PlaylistManagerPage() {
                         }
                     }
                 ) {
-                    Text("Erstellen", color = Primary)
+                    Text(Strings.t("playlists.save"), color = Primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) {
-                    Text("Abbrechen", color = Primary)
+                    Text(Strings.t("common.cancel"), color = Primary)
                 }
             },
             containerColor = CardBackground
@@ -310,13 +311,13 @@ fun PlaylistManagerPage() {
 
         AlertDialog(
             onDismissRequest = { showAddTracksDialog = false; trackSearchQuery = "" },
-            title = { Text("Tracks hinzufügen", color = OnSurface) },
+            title = { Text(Strings.t("library.add_to_playlist"), color = OnSurface) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = trackSearchQuery,
                         onValueChange = { trackSearchQuery = it },
-                        label = { Text("Suchen...") },
+                        label = { Text(Strings.t("library.search")) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -331,8 +332,8 @@ fun PlaylistManagerPage() {
                     Spacer(modifier = Modifier.height(8.dp))
                     if (filteredTracks.isEmpty()) {
                         Text(
-                            text = if (trackSearchQuery.isBlank()) "Keine Tracks in der Bibliothek"
-                            else "Keine Ergebnisse",
+                            text = if (trackSearchQuery.isBlank()) Strings.t("library.empty_tracks")
+                            else Strings.t("folders.empty"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = OnSurfaceVariant,
                             modifier = Modifier.padding(16.dp)
@@ -396,7 +397,7 @@ fun PlaylistManagerPage() {
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showAddTracksDialog = false; trackSearchQuery = "" }) {
-                    Text("Fertig", color = Primary)
+                    Text(Strings.t("common.save"), color = Primary)
                 }
             },
             containerColor = CardBackground

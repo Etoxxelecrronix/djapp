@@ -2,6 +2,7 @@ package com.djapp.engine
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -81,7 +82,7 @@ object EngineDJDatabase {
             bootstrapEngineSchema(db)
             db
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("EngineDJDB", "openEngineDb failed", e)
             null
         }
     }
@@ -100,7 +101,7 @@ object EngineDJDatabase {
             }
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("EngineDJDB", "flushEngineDb failed", e)
             false
         }
     }

@@ -21,8 +21,10 @@ import com.djapp.data.local.dao.PlaylistWithCount
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolume
 import com.djapp.engine.EngineVolumeDetector
+import com.djapp.i18n.Strings
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.theme.*
+import com.djapp.util.PrefsKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,8 +45,8 @@ fun SyncSettingsPage() {
     var usbVolume by remember { mutableStateOf<EngineVolume?>(null) }
     var lastSyncTime by remember { mutableStateOf<String?>(null) }
 
-    val prefs = remember { context.getSharedPreferences("dj_usb_selected", Context.MODE_PRIVATE) }
-    val selectedPath = prefs.getString("usb_selected_path", null) ?: ""
+    val prefs = remember { context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE) }
+    val selectedPath = prefs.getString(PrefsKeys.SELECTED_PATH, null) ?: ""
 
     LaunchedEffect(Unit) {
         val playlistList = withContext(Dispatchers.IO) { db.playlistDao().getAll() }
@@ -60,18 +62,18 @@ fun SyncSettingsPage() {
             if (manualVolume != null) usbVolume = manualVolume
         }
 
-        lastSyncTime = prefs.getString("last_sync_time", null)
+        lastSyncTime = prefs.getString(PrefsKeys.LAST_SYNC_TIME, null)
     }
 
     fun doSync() {
         if (usbVolume == null) {
-            syncMessage = "Kein Speichermedium mit Engine DJ Library gefunden"
+            syncMessage = Strings.t("usb.no_engine")
             return
         }
         isSyncing = true
         syncProgress = 0f
         syncMessage = null
-        currentSyncStep = "Lade lokale Tracks..."
+        currentSyncStep = Strings.t("common.loading")
 
         scope.launch {
             try {
@@ -79,7 +81,7 @@ fun SyncSettingsPage() {
 
                 val allTracks = withContext(Dispatchers.IO) { db.trackDao().getAll() }
                 syncProgress = 0.2f
-                currentSyncStep = "Synchronisiere mit Engine DJ..."
+                currentSyncStep = Strings.t("sync.progress")
 
                 val localPlaylists = withContext(Dispatchers.IO) { db.playlistDao().getAll() }
                 val playlistPairs = localPlaylists.mapNotNull { pl ->
@@ -107,16 +109,16 @@ fun SyncSettingsPage() {
                 }
 
                 syncProgress = 1f
-                currentSyncStep = "Fertig! ${result.tracksWritten} Tracks, ${result.playlistsWritten} Playlists."
+                currentSyncStep = Strings.t("sync.done", result.tracksWritten, result.playlistsWritten)
                 lastSyncTime = java.time.LocalDateTime.now()
                     .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-                prefs.edit().putString("last_sync_time", lastSyncTime).apply()
+                prefs.edit().putString(PrefsKeys.LAST_SYNC_TIME, lastSyncTime).apply()
 
                 if (result.errors.isNotEmpty()) {
-                    syncMessage = result.errors.joinToString("\n")
+                    syncMessage = "${Strings.t("sync.complete")}. ${result.errors.joinToString("\n")}"
                 }
             } catch (e: Exception) {
-                syncMessage = "Sync fehlgeschlagen: ${e.message}"
+                syncMessage = "${Strings.t("sync.error")}: ${e.message}"
             } finally {
                 isSyncing = false
             }
@@ -129,7 +131,7 @@ fun SyncSettingsPage() {
             .padding(16.dp)
     ) {
         Text(
-            text = "Synchronisierung",
+            text = Strings.t("sync.title"),
             style = MaterialTheme.typography.headlineMedium,
             color = OnSurface,
             fontWeight = FontWeight.Bold
@@ -144,7 +146,7 @@ fun SyncSettingsPage() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Speichermedium Status",
+                    text = Strings.t("sync.target"),
                     style = MaterialTheme.typography.titleMedium,
                     color = OnSurface,
                     fontWeight = FontWeight.SemiBold
@@ -160,7 +162,7 @@ fun SyncSettingsPage() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Engine DJ Library erkannt",
+                            text = Strings.t("library.engine_db_found"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Primary
                         )
@@ -180,7 +182,7 @@ fun SyncSettingsPage() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Kein Speichermedium ausgewählt",
+                            text = Strings.t("usb.no_devices"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = ErrorRed
                         )
@@ -195,7 +197,7 @@ fun SyncSettingsPage() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Keine Engine DJ Library auf diesem Stick",
+                            text = Strings.t("usb.no_engine"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = OnSurfaceVariant
                         )
@@ -203,7 +205,7 @@ fun SyncSettingsPage() {
                 }
                 if (lastSyncTime != null) {
                     Text(
-                        text = "Letzter Sync: $lastSyncTime",
+                        text = Strings.t("sync.last_sync", lastSyncTime ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = OnSurfaceVariant
                     )
@@ -228,7 +230,7 @@ fun SyncSettingsPage() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Playlists (${playlists.size})",
+                        text = "${Strings.t("nav.playlists")} (${playlists.size})",
                         style = MaterialTheme.typography.titleMedium,
                         color = OnSurface,
                         fontWeight = FontWeight.SemiBold
@@ -246,7 +248,7 @@ fun SyncSettingsPage() {
                 ) {
                     if (playlists.isEmpty()) {
                         Text(
-                            text = "Keine Playlists vorhanden",
+                            text = Strings.t("playlists.empty"),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = OnSurfaceVariant
@@ -274,7 +276,7 @@ fun SyncSettingsPage() {
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        text = "${playlist.trackCount} Tracks",
+                                        text = Strings.t("library.track_count", playlist.trackCount),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = OnSurfaceVariant
                                     )
@@ -290,7 +292,7 @@ fun SyncSettingsPage() {
         Spacer(modifier = Modifier.height(16.dp))
 
         GreenButton(
-            text = if (isSyncing) "Synchronisiere..." else "Sync starten",
+            text = if (isSyncing) Strings.t("sync.progress") else Strings.t("sync.start"),
             onClick = { doSync() },
             enabled = !isSyncing && usbVolume != null
         )
@@ -341,7 +343,7 @@ fun SyncSettingsPage() {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Kompatibilität",
+                        text = Strings.t("sync.compatibility"),
                         style = MaterialTheme.typography.titleSmall,
                         color = OnSurface,
                         fontWeight = FontWeight.SemiBold
@@ -349,7 +351,7 @@ fun SyncSettingsPage() {
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Engine DJ nutzt SQLite für die m.db. Camelot Key-Notation wird unterstützt. Kompatibel mit SC Live 4 und Denon Hardware.",
+                    text = Strings.t("sync.format_info"),
                     style = MaterialTheme.typography.bodySmall,
                     color = OnSurfaceVariant
                 )

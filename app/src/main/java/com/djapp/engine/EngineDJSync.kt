@@ -3,6 +3,7 @@ package com.djapp.engine
 import android.content.Context
 import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.TrackEntity
+import com.djapp.i18n.Strings
 import java.io.File
 import java.io.FileWriter
 
@@ -33,7 +34,7 @@ object EngineDJSync {
         overwrite: Boolean = false,
     ): EngineSyncResult {
         val db = EngineDJDatabase.openEngineDb(context, volumePath)
-            ?: return EngineSyncResult(0, 0, listOf("Konnte m.db nicht öffnen"))
+            ?: return EngineSyncResult(0, 0, listOf(Strings.t("engine.db_open_error")))
 
         val volumeRoot = volumePath.trimEnd('/')
         val trackIdMap = mutableMapOf<Long, Long>()
@@ -145,7 +146,7 @@ object EngineDJSync {
         }
 
         val flushed = EngineDJDatabase.flushEngineDb(context, volumePath)
-        if (!flushed) errors.add("Konnte m.db nicht auf das Medium schreiben")
+        if (!flushed) errors.add(Strings.t("engine.db_write_error"))
 
         return EngineSyncResult(
             tracksWritten = trackIdMap.size,
@@ -161,7 +162,7 @@ object EngineDJSync {
         playlistName: String?,
     ): EngineSyncResult {
         val db = EngineDJDatabase.openEngineDb(context, volumePath)
-            ?: return EngineSyncResult(0, 0, listOf("Konnte m.db nicht öffnen"))
+            ?: return EngineSyncResult(0, 0, listOf(Strings.t("engine.db_open_error")))
 
         val volumeRoot = volumePath.trimEnd('/')
         val errors = mutableListOf<String>()
@@ -249,7 +250,7 @@ object EngineDJSync {
         }
 
         val flushed = EngineDJDatabase.flushEngineDb(context, volumePath)
-        if (!flushed) errors.add("Konnte m.db nicht auf das Medium schreiben")
+        if (!flushed) errors.add(Strings.t("engine.db_write_error"))
 
         return EngineSyncResult(
             tracksWritten = engineTrackIds.size,

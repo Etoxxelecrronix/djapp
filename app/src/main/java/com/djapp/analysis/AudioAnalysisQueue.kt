@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import com.djapp.i18n.Strings
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -150,7 +151,7 @@ object AnalysisQueue {
         } catch (e: Exception) {
             queueItems[id] = item.copy(
                 status = TrackStatus.ERROR,
-                error = e.message ?: "Unknown error"
+                error = e.message ?: Strings.t("analysis.error")
             )
             _queue.value = HashMap(queueItems)
         }

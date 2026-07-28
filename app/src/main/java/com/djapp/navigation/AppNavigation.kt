@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.djapp.i18n.Strings
 import com.djapp.ui.screens.*
 
 private data class BottomNavItem(
@@ -50,7 +51,7 @@ fun AppNavigation() {
                         Text(
                             text = bottomNavItems.firstOrNull { item ->
                                 currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
-                            }?.screen?.title ?: "DJ Engine"
+                            }?.screen?.title ?: Strings.t("home.title")
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

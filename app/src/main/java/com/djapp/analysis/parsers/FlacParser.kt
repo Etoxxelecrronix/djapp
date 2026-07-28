@@ -1,6 +1,8 @@
 package com.djapp.analysis.parsers
 
 import com.djapp.analysis.FLACMeta
+import com.djapp.analysis.parsers.ParserUtils.readUint16BE
+import com.djapp.analysis.parsers.ParserUtils.readUint32LE
 
 object FlacParser {
 
@@ -17,11 +19,10 @@ object FlacParser {
         var bpm: Double? = null
         var key: String? = null
 
-        // Parse STREAMINFO block
         val streamInfoBlock = bytes.copyOfRange(4, minOf(42, bytes.size))
         if (streamInfoBlock.size >= 34) {
-            val minBlock = ((streamInfoBlock[2].toInt() and 0xFF) shl 8) or (streamInfoBlock[3].toInt() and 0xFF)
-            val maxBlock = ((streamInfoBlock[4].toInt() and 0xFF) shl 8) or (streamInfoBlock[5].toInt() and 0xFF)
+            val minBlock = readUint16BE(streamInfoBlock, 2).toInt() and 0xFFFF
+            val maxBlock = readUint16BE(streamInfoBlock, 4).toInt() and 0xFFFF
             sampleRate = ((streamInfoBlock[10].toInt() and 0xFF) shl 12) or
                     ((streamInfoBlock[11].toInt() and 0xFF) shl 4) or
                     ((streamInfoBlock[12].toInt() and 0xFF) shr 4)
@@ -80,29 +81,41 @@ object FlacParser {
         )
     }
 
+    fun findAudioDataOffset(bytes: ByteArray): Int {
+        if (bytes.size < 42) return -1
+        if (bytes[0] != 'f'.code.toByte() || bytes[1] != 'L'.code.toByte() ||
+            bytes[2] != 'A'.code.toByte() || bytes[3] != 'C'.code.toByte()
+        ) return -1
+
+        var pos = 4 + 34
+        while (pos + 4 < bytes.size) {
+            val headerByte = bytes[pos].toInt() and 0xFF
+            val isLast = (headerByte and 0x80) != 0
+            val blockSize = ((bytes[pos + 1].toInt() and 0xFF) shl 16) or
+                    ((bytes[pos + 2].toInt() and 0xFF) shl 8) or
+                    (bytes[pos + 3].toInt() and 0xFF)
+            pos += 4
+
+            if (isLast) return pos
+            pos += blockSize
+        }
+        return -1
+    }
+
     private fun parseVorbisComment(bytes: ByteArray, offset: Int, size: Int, onTag: (String, String) -> Unit) {
         if (offset + 4 > bytes.size) return
 
-        val vendorLen = ((bytes[offset].toInt() and 0xFF)) or
-                ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
-                ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
-                ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+        val vendorLen = readUint32LE(bytes, offset)
 
         var pos = offset + 4 + vendorLen
         if (pos + 4 > offset + size) return
 
-        val numComments = ((bytes[pos].toInt() and 0xFF)) or
-                ((bytes[pos + 1].toInt() and 0xFF) shl 8) or
-                ((bytes[pos + 2].toInt() and 0xFF) shl 16) or
-                ((bytes[pos + 3].toInt() and 0xFF) shl 24)
+        val numComments = readUint32LE(bytes, pos)
         pos += 4
 
         for (i in 0 until numComments) {
             if (pos + 4 > offset + size) break
-            val commentLen = ((bytes[pos].toInt() and 0xFF)) or
-                    ((bytes[pos + 1].toInt() and 0xFF) shl 8) or
-                    ((bytes[pos + 2].toInt() and 0xFF) shl 16) or
-                    ((bytes[pos + 3].toInt() and 0xFF) shl 24)
+            val commentLen = readUint32LE(bytes, pos)
             pos += 4
 
             if (pos + commentLen > offset + size) break
