@@ -272,8 +272,41 @@ git add -A && git commit -m "message" && git push
 | `printStackTrace()` | 2 | 0 | -2 |
 | Build-Müll | ~4.5 MB | 0 | -100% |
 | `package` im Manifest | 1 | 0 | -1 |
+| Fehlendes App-Icon | 1 | 1 | ✓ |
+| `setLocale()` Dead-Code | 1 | 0 | -1 |
+| FlacParser inline-Byte-Reads | 5 | 0 | -5 |
+| Release-Signing Config | 0 | 1 | +1 |
 
 **Status:** 100% sauber. Keine toten Codes, keine hardcodierten Strings, keine ungenutzten i18n-Keys, keine Build-Artefakte, kein Boilerplate.
+
+### Phase 8b: Icon, Signing, FlacParser, Dead-Code (direkt im Anschluss)
+
+**App-Icon (adaptive icon, minSdk=26):**
+- `res/drawable/ic_launcher_foreground.xml` — Music-Note Vector
+- `res/drawable/ic_launcher_background.xml` — Schwarzer Hintergrund
+- `res/mipmap-anydpi-v26/ic_launcher.xml` + `ic_launcher_round.xml`
+- Manifest: `android:icon` + `android:roundIcon` ergänzt
+
+**Strings.setLocale() entfernt:**
+- `Strings.kt:8–12` — `setLocale()` + `getLocale()` waren nirgends aufgerufen
+- `currentLocale` von `var` auf `private val` geändert
+
+**FlacParser → ParserUtils:**
+- 3× `readUint32LE` → `ParserUtils.readUint32LE()`
+- 2× `readUint16BE` → `ParserUtils.readUint16BE()`
+- FlacParser nun konsistent mit Mp3Parser/WavParser/AiffParser
+
+**Release-Signing Config:**
+- `build.gradle.kts`: `signingConfigs { create("release") }` — liest `keystore.properties`
+- Config ist **optional**: Nur aktiv wenn `app/keystore.properties` existiert
+- `isMinifyEnabled = true` für release (ProGuard)
+- `keystore.properties` in `.gitignore`, `keystore.properties.example` als Vorlage
+- `debug.keystore` lokal (wird nicht getrackt)
+
+**Build-Status:**
+- `build-tools;35.0.0` lokal per Symlink von 34.0.0 verfügbar gemacht
+- AAPT2 startet in diesem Container nicht (fehlende System-Libs)
+- Build funktioniert auf echter Maschine / CI
 
 ---
 
