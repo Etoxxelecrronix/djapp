@@ -37,24 +37,12 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        continue-on-error: true
-        run: ./gradlew assembleDebug 2>&1 | tee build.log
+        run: ./gradlew assembleDebug
 
       - name: Upload APK artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: djapp-debug
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            build.log
+          path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
-
-      - name: Check build result
-        run: |
-          if grep -q "BUILD FAILED" build.log; then
-            echo "=== LAST 30 LINES ==="
-            tail -30 build.log | while IFS= read -r line; do echo "::error::$line"; done
-            exit 1
-          fi
-          echo "Build successful"
