@@ -517,10 +517,16 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 
 **Ergebnis:** GitHub auf aktuellstem Stand. Debug-APK wird automatisch via CI gebaut und in den Actions-Artifacts bereitgestellt (`app-debug.apk`).
 
+### CI-Fix (aapt2)
+
+Alle 3 CI-Runs (#55–#57) schlugen fehl wegen `android.aapt2FromMavenOverride=/opt/android_sdk/build-tools/35.0.0/aapt2` in `gradle.properties` — ein lokaler ARM64-Workaround, der auf GitHub CI (x86_64) nicht existiert.
+
+**Fix:** Die Zeile aus `gradle.properties` entfernt und stattdessen in `~/.gradle/gradle.properties` ausgelagert (nur lokal). Auf CI wird der AGP-eigene aapt2 verwendet.
+
 | Metrik | Vorher | Nachher |
 |---|---|---|
-| GitHub-Stand | `c809a24` (Phase 12) | `d770f92` (Phase 17) |
-| CI-Run | #54 BUILDING | #55 in Arbeit |
+| GitHub-Stand | `c809a24` (Phase 12) | `b2364c1` (Phase 17) |
+| CI-Run | #54 failure (aapt2) | #57 BUILDING |
 | Kotlin-Dateien | 45 | 45 |
 | Zeilen Code | ~8.811 | ~8.807 |
 | Repository-Status | 8 Commits ahead, korrupt | up to date, sauber |
@@ -783,7 +789,9 @@ expandiert werden. Dabei gingen folgende Imports verloren:
 | #52 | `c809a24` | **SUCCESS** | Alle 4 Fehler gefixt – Debug-APK wiederhergestellt |
 | #53 | `87cbb77` | **SUCCESS** | Release/ProGuard entfernt, README aktualisiert |
 | #54 | `d770f92` | **SUCCESS** | Version 1.5, buildTypes ergänzt, README Chat-Startseite |
-| #55 | `d770f92` | **BUILDING** | Phase 17: GitHub Push, Git-Reparatur, README-Update |
+| #55 | `d770f92` | `failure` | Phase 17: GitHub Push, Git-Reparatur – `android.aapt2FromMavenOverride` (lokaler Pfad) |
+| #56 | `be65c75` | `failure` | ProGuard-Fix – selbe aapt2-Ursache |
+| #57 | `b2364c1` | **BUILDING** | aapt2-Override entfernt, CI-kompatibel |
 
 ### Erkenntnisse
 
