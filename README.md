@@ -535,11 +535,11 @@ expandiert werden. Dabei gingen folgende Imports verloren:
 | #43 | `8012fb1` | `failure` | (letzter Fix: imports + return@launch) |
 | #45 | `b6864f2` | **SUCCESS** | Fehlende getValue/setValue in 3 Dateien + Context ergänzt |
 | #46 | `144615e` | **SUCCESS** | Workflow gesäubert: continue-on-error, tee, grep-Annotationen entfernt |
-| #47 | `0aec442` | **SUCCESS** | Release-Build (assembleRelease) inkl. ProGuard läuft durch |
+| #47 | `0aec442` | **SUCCESS** | Release-Build (assembleRelease) inkl. ProGuard getestet |
 
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build unmöglich → CI-only Iteration
 - **GitHub API:** Aufgerufen via webfetch (API ohne Token), damit funktionieren die Abfragen
 - **Debug-Scaffolding:** `continue-on-error`, `tee build.log`, Artifact-Upload + `grep`-Annotationen entfernt – Build #46 bestätigt Stabilität
-- **Release-Build:** `assembleRelease` mit ProGuard (R8) funktioniert auf CI – Build #47
+- **Nur Debug-Build:** Release wird nicht weiter verfolgt – die App ist rein privat
