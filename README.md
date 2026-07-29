@@ -532,7 +532,7 @@ expandiert werden. Dabei gingen folgende Imports verloren:
 | #40 | `814dceb` | `failure` | Missing `getValue`/`setValue` LibraryPage |
 | #41 | `b6e4584` | `failure` | Missing `getValue`/`setValue` LibraryPage |
 | #42 | `a582b45` | `failure` | Missing `getValue`/`setValue` LibraryPage |
-| #43 | `432136e` | `?` | (letzter Fix: imports + return@launch) |
+| #43 | `8012fb1` | `?` | (letzter Fix: imports + return@launch) |
 
 ### Erkenntnisse
 
