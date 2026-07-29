@@ -38,7 +38,7 @@ jobs:
 
       - name: Build Debug APK
         continue-on-error: true
-        run: ./gradlew assembleDebug 2>&1 | tee build.log
+        run: ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
 
       - name: Upload APK artifact
         if: always()
@@ -54,9 +54,9 @@ jobs:
         run: |
           if grep -q "BUILD FAILED" build.log; then
             echo "=== BUILD FAILURE LOG ==="
-            grep -A 20 "FAILURE:" build.log || true
-            grep -B 5 "Error:" build.log || true
-            grep -B 5 "error:" build.log || true
+            grep -A 20 "FAILURE:" build.log | while IFS= read -r line; do echo "::error::$line"; done
+            grep -B 5 "Error:" build.log | while IFS= read -r line; do echo "::error::$line"; done
+            grep -B 5 "error:" build.log | while IFS= read -r line; do echo "::error::$line"; done
             echo "=== END ==="
             exit 1
           fi
