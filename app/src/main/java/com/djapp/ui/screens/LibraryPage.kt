@@ -42,10 +42,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -232,11 +234,14 @@ fun LibraryPage() {
             playlists = playlistList,
             onDismiss = { showAddToPlaylistDialog = false },
             onSelectPlaylist = { playlist ->
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        db.addTrackToPlaylist(playlist.id, selectedTrackForPlaylist?.id ?: return@launch)
+                val trackId = selectedTrackForPlaylist?.id
+                if (trackId != null) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            db.addTrackToPlaylist(playlist.id, trackId)
+                        }
+                        showAddToPlaylistDialog = false
                     }
-                    showAddToPlaylistDialog = false
                 }
             },
             onCreateNew = {
@@ -534,7 +539,7 @@ private fun NewPlaylistDialog(
         text = {
             OutlinedTextField(
                 value = name,
-                onValueChange = { newName: String -> name = newName },
+                onValueChange = { name = it },
                 label = { Text(Strings.t("playlists.create_prompt")) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,

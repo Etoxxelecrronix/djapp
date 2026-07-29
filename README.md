@@ -498,3 +498,46 @@ git add -A && git commit -m "message" && git push
 | Room Bugs | 1 | 0 | -1 |
 
 **Status:** 100% sauber. Keine toten Codes, keine Überschneidungen, keine Bugs, keine Warnungen.
+
+---
+
+## CI / Build-Status
+
+### Problem: Wildcard-Import-Expansion
+
+Nach Phase 9–10 mussten mehrere `import ...*`-Wildcard-Imports in explizite Einzelimporte
+expandiert werden. Dabei gingen folgende Imports verloren:
+
+| Import | Datei(en) | Symptom |
+|--------|-----------|---------|
+| `layout.weight` (internal) | `UsbStickPage.kt`, `LibraryPage.kt` | Wird via RowScope/ColumnScope aufgelöst – entfernt |
+| `size`, `width`, `fillMaxSize`, `fillMaxWidth`, `height`, `padding` | `CommonComponents.kt` | Unresolved reference |
+| `Icon` | `SyncSettingsPage.kt` | Unresolved reference |
+| `rememberCoroutineScope` | `SyncSettingsPage.kt`, `PlaylistManagerPage.kt` | Unresolved reference |
+| `BpmBadge` → alias `BpmBadgeColor` | `AnalysisProgressPage.kt` | Type clash (Composable vs Color) |
+| `Composable` | `SyncSettingsPage.kt` | `@Composable`-Annotation nicht gefunden |
+| `getValue`, `setValue` | `LibraryPage.kt` | `by`-Delegation (`MutableState`) nicht möglich |
+| `return@launch` in `withContext` | `LibraryPage.kt` | `return` nicht erlaubt – umgebaut auf `if`-Guard |
+
+### Builds (CI)
+
+| Run | Commit | Ergebnis | Fehler |
+|-----|--------|----------|--------|
+| #32–#34 | – | `failure` (kein Detail via API) | Unbekannt |
+| #35 | `5601985` | `failure` | Keine sichtbaren Fehler (nur Build-Log) |
+| #36 | `1d7bc9d` | `failure` | Keine Fehler in annotations sichtbar |
+| #37 | `7f44838` | `failure` | Import-Fehler in annotations |
+| #38 | `1298b54` | `failure` | Import-Fehler (tail -30) |
+| #39 | `7d26faa` | `failure` | Missing `Composable`-Import SyncSettingsPage |
+| #40 | `814dceb` | `failure` | Missing `getValue`/`setValue` LibraryPage |
+| #41 | `b6e4584` | `failure` | Missing `getValue`/`setValue` LibraryPage |
+| #42 | `a582b45` | `failure` | Missing `getValue`/`setValue` LibraryPage |
+| #43 | `432136e` | `?` | (letzter Fix: imports + return@launch) |
+
+### Erkenntnisse
+
+- **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build unmöglich → CI-only Iteration
+- **GitHub Token:** Keines verfügbar → Logs nicht per API lesbar
+- **Workaround:** `::error::`-Annotationen via `grep tail -30` aus Build-Output
+- **Nächste Schritte:** Nach grünem Build: Debug-Scaffolding aus Workflow entfernen
+  (`continue-on-error`, `tee build.log`, annotate-Logik), dann `assembleRelease` testen
