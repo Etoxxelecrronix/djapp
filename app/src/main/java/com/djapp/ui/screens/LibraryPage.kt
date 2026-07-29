@@ -534,7 +534,7 @@ private fun NewPlaylistDialog(
         text = {
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = { newName -> name = newName },
                 label = { Text(Strings.t("playlists.create_prompt")) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
