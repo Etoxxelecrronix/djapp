@@ -4,15 +4,15 @@
 
 ---
 
-## Startseite: Chat-Verlauf (Phasen 1–15 → 16)
+## Startseite: Chat-Verlauf (Phasen 1–16 → 17)
 
 Dieses README dokumentiert den **gesamten Entwicklungs-Chat-Verlauf** als Startseite.  
 Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen betroffen.
 
 **Version:** 1.5 (Build 15)  
 **Package:** `com.djapp` | **Min SDK:** 26 | **Target SDK:** 35  
-**Dateien:** 45 Kotlin-Dateien | ~8.811 Zeilen Code  
-**Build:** `BUILD SUCCESSFUL` — Debug APK (16 MB) unter `app/build/outputs/apk/debug/`
+**Dateien:** 45 Kotlin-Dateien | ~8.807 Zeilen Code  
+**Build:** GitHub Actions (automatisch) — Debug APK als Artifact `app-debug.apk`
 
 ### App-Startseite (Chat-Dashboard)
 
@@ -61,7 +61,7 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 
 ---
 
-## Gesamter Chat-Verlauf (Phasen 1–16)
+## Gesamter Chat-Verlauf (Phasen 1–16 → 17)
 
 ### Phase 1: React Native → Kotlin Konvertierung
 
@@ -492,6 +492,41 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 
 ---
 
+### Phase 17: GitHub Push & Git-Reparatur (diese Session)
+
+**Ausgangslage:**
+- GitHub zeigte nur Phase 12 (Stand: `c809a24`)
+- Lokal 8 Commits voraus (Phasen 13–16: Duplikat-Erkennung, Undo/Redo, InternalEngineDB, TrackDetailPage inkl. Edit-Modus, Version 1.5)
+- Debug-APK (1.5 / Build 15) existierte nur lokal — nicht auf GitHub
+
+**Session-Verlauf:**
+
+| Schritt | Aktion | Details |
+|---------|--------|---------|
+| 1 | Analyse | `git status`: 8 unpushed Commits (`origin/main` 8 hinterher) |
+| 2 | Push #1 | Fehlgeschlagen (5 min Timeout) |
+| 3 | Diagnose | Git-Repository korrupt: `.git/objects/` — "Operation not permitted" auf tausenden Dateien, 1.89 GiB Garbage, `git fsck` hunderte corrupt/missing objects |
+| 4 | Recovery | `.git` gelöscht → `git init` → `git fetch origin` → `git add -A` (26 Dateien) → `git commit` → `git push origin main` |
+| 5 | Push #2 | **Erfolg**: `d770f92` auf `origin/main` — alle 8 Phasen live |
+| 6 | CI | GitHub Actions Build #55 getriggert → Debug-APK als Artifact |
+
+**26 Dateien im Commit:**
+- 3 neue Dateien: `InternalEngineDB.kt`, `TrackDetailPage.kt`, `ActionHistory.kt`
+- 2 gelöscht: `keystore.properties.example`, `proguard-rules.pro`
+- 21 modifiziert: Screens, DAOs, Entities, Engine-Klassen, Strings, Navigation
+
+**Ergebnis:** GitHub auf aktuellstem Stand. Debug-APK wird automatisch via CI gebaut und in den Actions-Artifacts bereitgestellt (`app-debug.apk`).
+
+| Metrik | Vorher | Nachher |
+|---|---|---|
+| GitHub-Stand | `c809a24` (Phase 12) | `d770f92` (Phase 17) |
+| CI-Run | #54 BUILDING | #55 in Arbeit |
+| Kotlin-Dateien | 45 | 45 |
+| Zeilen Code | ~8.811 | ~8.807 |
+| Repository-Status | 8 Commits ahead, korrupt | up to date, sauber |
+
+---
+
 ## Architektur
 
 ```
@@ -747,11 +782,13 @@ expandiert werden. Dabei gingen folgende Imports verloren:
 | #51 | `1a8ac70` | `failure` | (selbe 4 Fehler – min/max-Fix war nicht das Problem) |
 | #52 | `c809a24` | **SUCCESS** | Alle 4 Fehler gefixt – Debug-APK wiederhergestellt |
 | #53 | `87cbb77` | **SUCCESS** | Release/ProGuard entfernt, README aktualisiert |
-| #54 | `HEAD` | **BUILDING** | Version 1.5, buildTypes ergänzt, README Chat-Startseite |
+| #54 | `d770f92` | **SUCCESS** | Version 1.5, buildTypes ergänzt, README Chat-Startseite |
+| #55 | `d770f92` | **BUILDING** | Phase 17: GitHub Push, Git-Reparatur, README-Update |
 
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build funktioniert mit ARM64-AAPT2 aus `/opt/android_sdk/build-tools/35.0.0/`
-- **Debug APK:** 16 MB, app-debug.apk unter `app/build/outputs/apk/debug/`, Git-ignoriert
+- **Debug APK:** 16 MB, wird via GitHub Actions als Artifact (`app-debug.apk`) bereitgestellt
 - **Versionierung:** `versionCode` = Phasen-Anzahl, `versionName` = major.minor (aktuell 1.5 / code 15)
 - **Nur Debug-Build:** Release wird nicht weiter verfolgt – die App ist rein privat
+- **Git-Garbage:** `.l2s.tmp_*`-Dateien im `.git/objects/` können auf F2FS zu Korruption führen — bei Bedarf `git init` + `git fetch origin` + `git add -A` + `git commit` + `git push` zur Reparatur
