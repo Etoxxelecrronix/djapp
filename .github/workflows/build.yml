@@ -55,8 +55,9 @@ jobs:
           if grep -q "BUILD FAILED" build.log; then
             echo "=== BUILD FAILURE LOG ==="
             grep -A 20 "FAILURE:" build.log | while IFS= read -r line; do echo "::error::$line"; done
-            grep -B 5 "Error:" build.log | while IFS= read -r line; do echo "::error::$line"; done
-            grep -B 5 "error:" build.log | while IFS= read -r line; do echo "::error::$line"; done
+            grep -ni "unresolved\|type mismatch\|e:" build.log | head -50 | while IFS= read -r line; do echo "::error::$line"; done
+            echo "=== LAST 30 LINES ==="
+            tail -30 build.log
             echo "=== END ==="
             exit 1
           fi
