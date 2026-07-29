@@ -39,10 +39,14 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Upload APK artifact
+      - name: Upload Debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: djapp-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+
+      - name: Build Release APK (unsigned – Signing nur lokal, ProGuard-Test)
+        continue-on-error: true
+        run: ./gradlew assembleRelease

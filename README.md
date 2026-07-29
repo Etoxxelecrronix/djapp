@@ -534,11 +534,11 @@ expandiert werden. Dabei gingen folgende Imports verloren:
 | #42 | `a582b45` | `failure` | Missing `getValue`/`setValue` LibraryPage |
 | #43 | `8012fb1` | `failure` | (letzter Fix: imports + return@launch) |
 | #45 | `b6864f2` | **SUCCESS** | Fehlende getValue/setValue in 3 Dateien + Context ergänzt |
+| #46 | `144615e` | **SUCCESS** | Workflow gesäubert: continue-on-error, tee, grep-Annotationen entfernt |
 
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build unmöglich → CI-only Iteration
-- **GitHub Token:** Keines verfügbar → Logs nicht per API lesbar
-- **Workaround:** `::error::`-Annotationen via `grep tail -30` aus Build-Output
-- **Nächste Schritte:** Nach grünem Build: Debug-Scaffolding aus Workflow entfernen
-  (`continue-on-error`, `tee build.log`, annotate-Logik), dann `assembleRelease` testen
+- **GitHub API:** Aufgerufen via webfetch (API ohne Token), damit funktionieren die Abfragen
+- **Debug-Scaffolding:** `continue-on-error`, `tee build.log`, Artifact-Upload + `grep`-Annotationen entfernt – Build #46 bestätigt Stabilität
+- **Nächste Schritte:** Release-Build (`assembleRelease`) im CI testen
