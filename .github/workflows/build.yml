@@ -53,8 +53,8 @@ jobs:
       - name: Check build result
         run: |
           if grep -q "BUILD FAILED" build.log; then
-            echo "=== FULL BUILD LOG ==="
-            cat -n build.log | while IFS= read -r line; do echo "::error::$line"; done
+            echo "=== LAST 30 LINES ==="
+            tail -30 build.log | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           fi
           echo "Build successful"
