@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.UsbOff
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -48,6 +49,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.djapp.data.local.DJLibraryDatabase
+import com.djapp.data.local.dao.PlaylistWithCount
+import com.djapp.data.local.entity.PlaylistEntity
+import com.djapp.data.local.entity.TrackEntity
+import com.djapp.engine.EngineDJSync
+import com.djapp.engine.EngineSyncResult
+import com.djapp.engine.EngineVolumeDetector
 import com.djapp.i18n.Strings
 import com.djapp.scanner.FolderStat
 import com.djapp.scanner.MusicScanner
@@ -115,6 +122,47 @@ fun FolderBrowserPage(
         }
     }
 
+    fun exportFolderToUsb(folder: FolderStat) {
+        scope.launch {
+            try {
+                val tracks = folder.tracks.map { Triple(it.path, it.name, it.extension) }
+                val plId = withContext(Dispatchers.IO) {
+                    db.importFolderAsPlaylist(folder.name, tracks)
+                }
+
+                val volume = withContext(Dispatchers.IO) {
+                    EngineVolumeDetector.detectVolumeAtPath(context, selectedPath)
+                }
+                if (volume == null) {
+                    importMessage = Strings.t("usb.no_devices")
+                    return@launch
+                }
+
+                val result = withContext(Dispatchers.IO) {
+                    val allTracks = db.getAllTracks()
+                    val pwc = db.playlistDao().getById(plId) ?: return@withContext EngineSyncResult(0, 0, listOf("playlist not found"))
+                    val playlistTracks = db.playlistDao().getTracks(plId)
+                    val pl = PlaylistEntity(
+                        id = pwc.id, title = pwc.title,
+                        parentId = pwc.parentId, isFolder = pwc.isFolder,
+                        createdAt = pwc.createdAt,
+                    )
+                    EngineDJSync.syncToEngineDJ(
+                        context = context, volumePath = volume.path,
+                        tracks = allTracks, playlists = listOf(pl to playlistTracks),
+                    )
+                }
+
+                importMessage = if (result.errors.isEmpty())
+                    Strings.t("folders.export_done", folder.name)
+                else
+                    Strings.t("folders.export_error", result.errors.first())
+            } catch (e: Exception) {
+                importMessage = Strings.t("folders.export_error", e.message ?: "unknown")
+            }
+        }
+    }
+
     LaunchedEffect(selectedPath) {
         if (selectedPath.isNotBlank()) doScan()
     }
@@ -126,30 +174,30 @@ fun FolderBrowserPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         Text(
             text = Strings.t("folders.title"),
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
             color = OnSurface,
             fontWeight = FontWeight.Bold
         )
 
         if (selectedPath.isBlank()) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             EmptyState(
                 message = Strings.t("usb.no_devices"),
                 icon = Icons.Default.UsbOff
             )
         } else {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = selectedPath,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = OnSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = searchQuery,
@@ -189,17 +237,17 @@ fun FolderBrowserPage(
 
             if (importMessage != null) {
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = Primary.copy(alpha = 0.12f)),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(importMessage ?: "", color = Primary, style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(importMessage ?: "", color = Primary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -269,6 +317,17 @@ fun FolderBrowserPage(
                         Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = Primary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(Strings.t("folders.create_playlist"), color = OnSurface)
+                    }
+                    TextButton(
+                        onClick = {
+                            showContextMenu = false
+                            selectedFolder?.let { exportFolderToUsb(it) }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Usb, contentDescription = null, tint = Primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(Strings.t("folders.export_usb"), color = OnSurface)
                     }
                 }
             },

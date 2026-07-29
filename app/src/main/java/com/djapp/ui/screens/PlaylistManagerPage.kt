@@ -55,8 +55,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.data.local.dao.PlaylistWithCount
+import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.TrackEntity
+import com.djapp.engine.EngineDJSync
+import com.djapp.engine.EngineVolumeDetector
 import com.djapp.i18n.Strings
+import com.djapp.util.PrefsKeys
 import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
 import com.djapp.ui.components.GreenButton
@@ -86,8 +90,6 @@ fun PlaylistManagerPage() {
     var showCreateDialog by remember { mutableStateOf(false) }
     var editingPlaylistId by remember { mutableStateOf<Long?>(null) }
     var editTitle by remember { mutableStateOf("") }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var deletingPlaylist by remember { mutableStateOf<PlaylistWithCount?>(null) }
     var showAddTracksDialog by remember { mutableStateOf(false) }
     var allTracks by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     var trackSearchQuery by remember { mutableStateOf("") }
@@ -113,12 +115,41 @@ fun PlaylistManagerPage() {
         }
     }
 
+    fun syncPlaylistToUsb(playlist: PlaylistWithCount, tracks: List<TrackEntity>) {
+        scope.launch {
+            val prefs = context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE)
+            val selectedPath = prefs.getString(PrefsKeys.SELECTED_PATH, null)
+            if (selectedPath.isNullOrBlank()) return@launch
+
+            val volume = withContext(Dispatchers.IO) {
+                EngineVolumeDetector.detectVolumeAtPath(context, selectedPath)
+            }
+            if (volume == null) return@launch
+
+            val playlistEntity = PlaylistEntity(
+                id = playlist.id,
+                title = playlist.title,
+                parentId = playlist.parentId,
+                isFolder = playlist.isFolder,
+                createdAt = playlist.createdAt,
+            )
+            withContext(Dispatchers.IO) {
+                EngineDJSync.syncToEngineDJ(
+                    context = context,
+                    volumePath = volume.path,
+                    tracks = tracks,
+                    playlists = listOf(playlistEntity to tracks),
+                )
+            }
+        }
+    }
+
     LaunchedEffect(Unit) { refreshPlaylists() }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -127,7 +158,7 @@ fun PlaylistManagerPage() {
         ) {
             Text(
                 text = Strings.t("playlists.title"),
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = OnSurface,
                 fontWeight = FontWeight.Bold
             )
@@ -180,7 +211,12 @@ fun PlaylistManagerPage() {
                         )
                         OutlinedGreenButton(
                             text = Strings.t("playlists.sync"),
-                            onClick = { },
+                            onClick = {
+                                val pl = selectedPlaylist
+                                if (pl != null) {
+                                    syncPlaylistToUsb(pl, selectedPlaylistTracks)
+                                }
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }

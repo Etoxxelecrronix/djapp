@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Environment
 import android.provider.DocumentsContract
+import java.io.File
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -71,10 +72,24 @@ private fun resolveSafTreeUri(uri: android.net.Uri): String? {
         val split = docId.split(":")
         val storageType = split[0]
         val relativePath = if (split.size > 1) split[1] else ""
-        val resolved = if (storageType.equals("primary", ignoreCase = true)) {
-            Environment.getExternalStorageDirectory().absolutePath + "/" + relativePath
-        } else {
-            "/storage/$storageType/$relativePath"
+        val resolved = when {
+            storageType.equals("primary", ignoreCase = true) -> {
+                Environment.getExternalStorageDirectory().absolutePath + "/" + relativePath
+            }
+            storageType.startsWith("/") -> {
+                // Absolute path embedded in docId (e.g. "/storage/XXXX-XXXX/...")
+                storageType + "/" + relativePath
+            }
+            else -> {
+                // Try common mount points for the volume ID
+                val candidates = listOf(
+                    "/storage/$storageType",
+                    "/mnt/media_rw/$storageType",
+                    "/storage/$storageType/$relativePath",
+                )
+                candidates.firstOrNull { File(it).exists() }
+                    ?: "/storage/$storageType/$relativePath"
+            }
         }
         return resolved.trimEnd('/')
     } catch (_: Exception) {
@@ -130,7 +145,7 @@ fun UsbStickPage() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -142,7 +157,7 @@ fun UsbStickPage() {
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = Strings.t("usb.title"),
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = OnSurface,
                 fontWeight = FontWeight.Bold
             )
@@ -150,11 +165,11 @@ fun UsbStickPage() {
 
         Text(
             text = Strings.t("usb.subtitle"),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = OnSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GreenButton(
@@ -194,22 +209,22 @@ fun UsbStickPage() {
 
         if (selectedPath.isNotBlank()) {
             Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = Primary.copy(alpha = 0.12f)),
                 border = BorderStroke(1.dp, Primary),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(4.dp),
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.CheckCircle, null, tint = Primary, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Column {
-                        Text(Strings.t("usb.selected"), style = MaterialTheme.typography.labelMedium, color = Primary)
+                        Text(Strings.t("usb.selected"), style = MaterialTheme.typography.labelSmall, color = Primary)
                         Text(
                             selectedPath.split("/").takeLast(2).joinToString("/"),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall,
                             color = OnSurface,
                         )
                     }
@@ -224,8 +239,8 @@ fun UsbStickPage() {
             )
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(bottom = 8.dp),
             ) {
                 items(volumes) { volume ->
                     val isSelected = selectedPath == volume.path
@@ -237,10 +252,10 @@ fun UsbStickPage() {
                             containerColor = if (isSelected) Primary.copy(alpha = 0.12f) else CardBackground,
                         ),
                         border = if (isSelected) BorderStroke(2.dp, Primary) else null,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(4.dp),
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
@@ -251,24 +266,24 @@ fun UsbStickPage() {
                                 },
                                 contentDescription = null,
                                 tint = if (isSelected) Primary else OnSurfaceVariant,
-                                modifier = Modifier.size(40.dp),
+                                modifier = Modifier.size(32.dp),
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = volume.label,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = OnSurface,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 Text(
                                     text = "${volume.trackCount} ${Strings.t("usb.tracks")}",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = OnSurfaceVariant,
                                 )
                                 Text(
                                     text = volume.path,
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = OnSurfaceVariant.copy(alpha = 0.7f),
                                 )
                             }
@@ -277,7 +292,7 @@ fun UsbStickPage() {
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = Strings.t("usb.engine_found"),
                                     tint = Primary,
-                                    modifier = Modifier.size(24.dp),
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                         }

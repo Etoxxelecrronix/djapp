@@ -57,13 +57,13 @@ import com.djapp.util.PrefsKeys
 fun HomePage(
     onNavigateToUsbStick: () -> Unit,
     onNavigateToFolders: () -> Unit,
-    onNavigateToAnalysis: () -> Unit,
+    onNavigateToAnalysis: (String) -> Unit,
     onNavigateToLibrary: () -> Unit = {},
 ) {
     var totalTracks by remember { mutableIntStateOf(0) }
     var analyzedTracks by remember { mutableIntStateOf(0) }
     var playlistCount by remember { mutableIntStateOf(0) }
-    var hasUsbPath by remember { mutableStateOf(false) }
+    var selectedPath by remember { mutableStateOf("") }
 
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE) }
@@ -73,7 +73,7 @@ fun HomePage(
         totalTracks = stats.totalTracks
         analyzedTracks = stats.analyzedTracks
         playlistCount = stats.totalPlaylists
-        hasUsbPath = prefs.getString(PrefsKeys.SELECTED_PATH, null).isNullOrBlank().not()
+        selectedPath = prefs.getString(PrefsKeys.SELECTED_PATH, null) ?: ""
     }
 
     Box(
@@ -89,68 +89,72 @@ fun HomePage(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Surface(
                 shape = CircleShape,
                 color = Primary.copy(alpha = 0.15f),
-                modifier = Modifier.size(80.dp)
+                modifier = Modifier.size(64.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.MusicNote,
                         contentDescription = null,
                         tint = Primary,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = Strings.t("home.title"),
-                style = MaterialTheme.typography.displayLarge,
+                style = MaterialTheme.typography.headlineLarge,
                 color = OnSurface,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
                 text = Strings.t("home.subtitle"),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = OnSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             GreenButton(
                 text = Strings.t("home.select_usb"),
-                onClick = onNavigateToUsbStick
+                onClick = onNavigateToUsbStick,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedGreenButton(
                 text = Strings.t("home.browse_folders"),
-                onClick = onNavigateToFolders
+                onClick = onNavigateToFolders,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedGreenButton(
                 text = Strings.t("home.start_analysis"),
-                onClick = { if (hasUsbPath) onNavigateToAnalysis() else onNavigateToUsbStick() },
-                enabled = hasUsbPath
+                onClick = { if (selectedPath.isNotBlank()) onNavigateToAnalysis(selectedPath) else onNavigateToUsbStick() },
+                enabled = selectedPath.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedGreenButton(
                 text = Strings.t("home.library"),
-                onClick = onNavigateToLibrary
+                onClick = onNavigateToLibrary,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -158,18 +162,18 @@ fun HomePage(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(8.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
                         text = Strings.t("home.library"),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = OnSurface,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -181,7 +185,7 @@ fun HomePage(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
@@ -198,13 +202,13 @@ private fun StatItem(label: String, value: String, icon: ImageVector) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
             color = OnSurface,
             fontWeight = FontWeight.Bold
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = OnSurfaceVariant
         )
     }

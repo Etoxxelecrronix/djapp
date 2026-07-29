@@ -7,7 +7,7 @@ Native Android App (Kotlin / Jetpack Compose) zur Verwaltung einer DJ-Musikbibli
 **Version:** 1.0.0  
 **Package:** `com.djapp`  
 **Min SDK:** 26 | **Target SDK:** 35  
-**Dateien:** 40 Kotlin-Dateien | ~7.270 Zeilen Code  
+**Dateien:** 40 Kotlin-Dateien | ~7.100 Zeilen Code  
 **Status:** Sauber, keine toten Codes, keine Warnungen
 
 ### Workflow
@@ -19,13 +19,14 @@ Native Android App (Kotlin / Jetpack Compose) zur Verwaltung einer DJ-Musikbibli
 4. USB-Stick in Handy stecken
 5. App öffnen → "Speichermedium" → USB-Stick auswählen
 6. "Ordner" Tab → USB wird gescannt → Ordner erscheinen
-7. Ordner antippen → "Analyse starten"
+7. Ordner antippen → "Analyse starten" (oder direkt analysieren)
 8. Nach Analyse: "Auf USB schreiben" → Playlist-Name eingeben
-9. App schreibt m.db + M3U8 auf USB-Stick
-10. USB-Stick aus Handy nehmen
-11. USB-Stick in Denon SC Live stecken
-12. Controller liest m.db → Playlists erscheinen automatisch
-13. Tracks in Deck laden → Controller analysiert Beatgrid/BPM/Waveform
+9. **Alternativ:** Ordner lang drücken → "Auf USB exportieren" → importiert alle Tracks sofort als Playlist + sync m.db/M3U8 auf USB
+10. App schreibt m.db + M3U8 auf USB-Stick
+11. USB-Stick aus Handy nehmen
+12. USB-Stick in Denon SC Live stecken
+13. Controller liest m.db → Playlists erscheinen automatisch
+14. Tracks in Deck laden → Controller analysiert Beatgrid/BPM/Waveform
 ```
 
 ### Status pro Bereich
@@ -36,9 +37,9 @@ Native Android App (Kotlin / Jetpack Compose) zur Verwaltung einer DJ-Musikbibli
 | Room Database | Fertig | 4 Entities, 3 DAOs, 1 DB-Klasse |
 | Audio Analysis | Fertig | FFT, BPM, Key, LUFS, Waveform |
 | Engine DJ Sync | Fertig | m.db lesen/schreiben, M3U8 Export |
-| USB Stick Erkennung | Fertig | 12 USB-Pfade, Volume Detection |
+| USB Stick Erkennung | Fertig | Dynamische Volumen-Erkennung (StorageManager, /storage/, /mnt/media_rw/, /proc/mounts) |
 | Music Scanner | Fertig | Rekursiver Datei-Scanner mit Cache |
-| i18n (DE/EN) | Fertig | ~100 Strings pro Sprache |
+| i18n (DE) | Fertig | ~82 Strings, nur Deutsch |
 | Theme | Fertig | Dark Mode (#1DB954grün / #191414dunkel) |
 
 ---
@@ -81,7 +82,7 @@ com.djapp/
 ├── scanner/
 │   └── MusicScanner.kt          # Rekursiver Datei-Scanner mit Cache
 ├── i18n/
-│   └── Strings.kt               # DE/EN Lokalisierung (~200 Strings)
+│   └── Strings.kt               # DE Lokalisierung (~82 Strings)
 ├── navigation/
 │   ├── Screen.kt                # 7 Routen definiert
 │   └── AppNavigation.kt         # NavHost + Bottom Navigation
@@ -193,7 +194,7 @@ Keine Internet-Berechtigung nötig (reines Offline-Tool).
 - **Schema:** Track, Playlist, PlaylistEntity, PerformanceData Tabellen
 - **M3U8 Sidecar:** Playlists werden zusätzlich als .m3u8 Dateien exportiert
 - **Hardware:** Kompatibel mit Denon SC Live 4 und anderer Engine DJ Hardware
-- **USB-Pfade:** 12 Suchpfade für USB-Sticks
+- **USB-Pfade:** Dynamische Erkennung via StorageManager, /storage/-Scan, /mnt/media_rw/, /proc/mounts
 - **Relative Pfade:** Tracks werden mit relativen Pfaden in m.db gespeichert
 
 ---
@@ -277,7 +278,7 @@ git add -A && git commit -m "message" && git push
 | FlacParser inline-Byte-Reads | 5 | 0 | -5 |
 | Release-Signing Config | 0 | 1 | +1 |
 
-**Status:** 100% sauber. Keine toten Codes, keine hardcodierten Strings, keine ungenutzten i18n-Keys, keine Build-Artefakte, kein Boilerplate.
+**Status:** 100% sauber. Keine toten Codes, keine hardcodierten Strings, keine ungenutzten i18n-Keys, keine Build-Artefakte, kein Boilerplate. Englische Locale-Strings entfernt.
 
 ### Phase 8b: Icon, Signing, FlacParser, Dead-Code (direkt im Anschluss)
 
@@ -341,6 +342,7 @@ git add -A && git commit -m "message" && git push
 ## Offene TODO-Liste
 
 ✅ **Alle 14 Tickets erledigt** – siehe Phasen 9+10.
+✅ **i18n vereinfacht (nur DE)** + "Auf USB exportieren" Feature – siehe Phase 11.
 
 ## Chat-Verlauf
 
@@ -354,7 +356,7 @@ git add -A && git commit -m "message" && git push
 **User-Anforderungen:**
 - USB-Stick als Speichermedium
 - Kein Payment/Stripe Code
-- Deutsch als Standardsprache mit Englisch-Fallback (i18n)
+- Deutsch als einzige Sprache (i18n, später vereinfacht)
 - Stack Navigation, 7 Pages
 - Theme: primary #1DB954 (Spotifygrün), secondary #191414 (dunkel)
 - Engine DJ m.db (SQLite) Kompatibilität für Denon SC Live Hardware
@@ -396,7 +398,7 @@ git add -A && git commit -m "message" && git push
 **Engine DJ Kompatibilität:**
 - `EngineDJDatabase`: Read/Write m.db via raw SQLiteDatabase
 - `EngineDJSync`: Bidirektionale Synchronisation + M3U8 Export
-- `EngineVolumeDetector`: 12 USB-Suchpfade
+- `EngineVolumeDetector`: Dynamische Volumen-Erkennung (4 Strategien)
 
 ---
 
@@ -498,6 +500,21 @@ git add -A && git commit -m "message" && git push
 | Room Bugs | 1 | 0 | -1 |
 
 **Status:** 100% sauber. Keine toten Codes, keine Überschneidungen, keine Bugs, keine Warnungen.
+
+---
+
+### Phase 11: i18n vereinfacht + Auf USB exportieren (diese Session)
+
+**i18n vereinfacht:**
+- `en`-Map entfernt (war tot – `Locale.GERMAN` war ohnehin hartcodiert)
+- `Locale`-Lookup-Logik entfernt → Direkter Map-Zugriff
+- `Strings.kt` von 206 → ~100 Zeilen reduziert
+
+**Neue Funktion "Auf USB exportieren":**
+- `FolderBrowserPage.kt:125-164` – Neue `exportFolderToUsb()` Funktion
+- Long-Press-Context-Menü um dritten Button erweitert: USB-Icon + "Auf USB exportieren"
+- Importiert alle Ordner-Tracks als Playlist in Room, erkennt USB-Volume via `EngineVolumeDetector`, ruft `EngineDJSync.syncToEngineDJ()` auf
+- i18n Keys: `folders.export_usb`, `folders.export_done`, `folders.export_error`
 
 ---
 

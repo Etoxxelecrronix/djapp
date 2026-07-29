@@ -1,6 +1,10 @@
 package com.djapp.engine
 
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.os.storage.StorageManager
+import android.os.storage.StorageVolume
 import android.util.Log
 import com.djapp.i18n.Strings
 import java.io.File
@@ -16,17 +20,6 @@ data class EngineVolume(
 enum class VolumeType { SD, USB, INTERNAL }
 
 object EngineVolumeDetector {
-
-    private val USB_PATHS = listOf(
-        "/storage/usb0", "/storage/usb1", "/storage/usbdisk",
-        "/storage/UsbDriveA", "/storage/UsbDriveB", "/mnt/usb_storage",
-        "/mnt/usb", "/mnt/media_rw/usb0", "/mnt/media_rw/usb1",
-        "/mnt/media_rw/udisk0", "/mnt/media_rw/udisk1", "/storage/usb",
-    )
-
-    private val INTERNAL_PATHS = listOf(
-        "/storage/emulated/0" to "",
-    )
 
     private fun detectVolume(
         context: Context,
@@ -69,27 +62,133 @@ object EngineVolumeDetector {
         return detectVolume(context, path, label, type)
     }
 
+    /**
+     * Dynamisch alle verfügbaren USB-/SD-Karten-Volumes erkennen.
+     *
+     * Ersetzt die alte hartcodierte Pfadliste durch:
+     * 1. [StorageManager.getStorageVolumes] (API 24+) – zuverlässigste Quelle
+     * 2. Scan von /storage/ – für OEM-spezifische Mounts
+     * 3. Scan von /mnt/media_rw/ – für USB-OTG auf vielen Geräten
+     * 4. /proc/mounts-Parsing als Fallback
+     */
     suspend fun detectUsbVolumes(context: Context): List<EngineVolume> {
+        val seen = mutableSetOf<String>()
         val found = mutableListOf<EngineVolume>()
 
-        for (path in USB_PATHS) {
-            detectVolume(context, path, path.split("/").last(), VolumeType.USB)?.let { found.add(it) }
+        fun tryAdd(path: String, label: String, type: VolumeType) {
+            val normalized = path.trimEnd('/')
+            if (normalized in seen) return
+            seen.add(normalized)
+            detectVolume(context, normalized, label, type)?.let { found.add(it) }
+        }
+
+        // 1. StorageManager API (primäre Quelle)
+        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
+        if (storageManager != null) {
+            val volumes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                storageManager.storageVolumes
+            } else {
+                @Suppress("DEPRECATION")
+                storageManager.volumeList ?: emptyList()
+            }
+            for (vol in volumes) {
+                val dir = vol.directory?.absolutePath ?: vol.path
+                val isRemovable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    vol.isRemovable
+                } else {
+                    @Suppress("DEPRECATION")
+                    vol.isRemovable
+                }
+                val label = getVolumeLabel(context, vol) ?: dir.split("/").last()
+                val type = when {
+                    !isRemovable -> VolumeType.INTERNAL
+                    dir.contains("sdcard", ignoreCase = true) -> VolumeType.SD
+                    else -> VolumeType.USB
+                }
+                tryAdd(dir, label, type)
+            }
+        }
+
+        // 2. /storage/ scannen (USB-Mounts wie /storage/XXXX-XXXX)
+        try {
+            val storageDir = File("/storage")
+            if (storageDir.exists()) {
+                for (entry in storageDir.listFiles().orEmpty()) {
+                    if (entry.name in setOf("emulated", "self", "legacy")) continue
+                    if (!entry.isDirectory || !entry.canRead()) continue
+                    val label = Strings.t("volume.usb_manual") + " (${entry.name})"
+                    tryAdd(entry.absolutePath, label, VolumeType.USB)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("EngineVolDetect", "scan /storage failed", e)
+        }
+
+        // 3. /mnt/media_rw/ scannen (alternative USB-OTG-Mounts)
+        try {
+            val mntDir = File("/mnt/media_rw")
+            if (mntDir.exists()) {
+                for (entry in mntDir.listFiles().orEmpty()) {
+                    if (!entry.isDirectory || !entry.canRead()) continue
+                    val label = Strings.t("volume.usb_manual") + " (${entry.name})"
+                    tryAdd(entry.absolutePath, label, VolumeType.USB)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("EngineVolDetect", "scan /mnt/media_rw failed", e)
+        }
+
+        // 4. /proc/mounts parsen als Fallback
+        try {
+            val mounts = File("/proc/mounts")
+            if (mounts.canRead()) {
+                val usbFsTypes = setOf("vfat", "exfat", "ntfs", "fuseblk", "ext4", "sdfat")
+                for (line in mounts.readLines()) {
+                    val parts = line.split(Regex("\\s+"))
+                    if (parts.size < 2) continue
+                    val mntPoint = parts[1]
+                    val fsType = parts.getOrNull(2) ?: ""
+                    if (fsType !in usbFsTypes) continue
+                    // Nur Pfade unter /storage/, /mnt/ oder /run/media/ interessieren
+                    if (!mntPoint.startsWith("/storage/") &&
+                        !mntPoint.startsWith("/mnt/") &&
+                        !mntPoint.startsWith("/run/media/")) continue
+                    val label = Strings.t("volume.usb_manual") + " (${mntPoint.split("/").last()})"
+                    tryAdd(mntPoint, label, VolumeType.USB)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("EngineVolDetect", "parse /proc/mounts failed", e)
         }
 
         return found
     }
 
     suspend fun detectAllVolumes(context: Context): List<EngineVolume> {
-        val found = mutableListOf<EngineVolume>()
+        val found = detectUsbVolumes(context).toMutableList()
 
-        for (path in USB_PATHS) {
-            detectVolume(context, path, path.split("/").last(), VolumeType.USB)?.let { found.add(it) }
-        }
-
-        for ((path, _) in INTERNAL_PATHS) {
-            detectVolume(context, path, Strings.t("volume.internal"), VolumeType.INTERNAL)?.let { found.add(it) }
+        // Internen Speicher immer ergänzen
+        val internalPath = Environment.getExternalStorageDirectory().absolutePath
+        val alreadyHasInternal = found.any { it.path == internalPath }
+        if (!alreadyHasInternal) {
+            detectVolume(context, internalPath, Strings.t("volume.internal"), VolumeType.INTERNAL)
+                ?.let { found.add(it) }
         }
 
         return found
+    }
+
+    private fun getVolumeLabel(context: Context, vol: StorageVolume): String? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                @Suppress("DEPRECATION")
+                (vol.description as? CharSequence)?.toString()
+            } else {
+                @Suppress("DEPRECATION")
+                vol.getDescription(context)
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 }

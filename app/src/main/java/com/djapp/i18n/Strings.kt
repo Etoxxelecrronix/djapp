@@ -1,11 +1,7 @@
 package com.djapp.i18n
 
-import java.util.Locale
-
 object Strings {
-    private val currentLocale: Locale = Locale.GERMAN
-
-    private val de = mapOf(
+    private val strings = mapOf(
         "nav.home" to "Start",
         "nav.folders" to "Ordner",
         "nav.playlists" to "Playlists",
@@ -37,6 +33,9 @@ object Strings {
         "folders.scan" to "Scannen",
         "folders.analyze" to "Ordner analysieren",
         "folders.create_playlist" to "Playlist erstellen",
+        "folders.export_usb" to "Auf USB exportieren",
+        "folders.export_done" to "\"%s\" auf USB exportiert",
+        "folders.export_error" to "Export fehlgeschlagen: %s",
         "folders.tracks_count" to "%d Tracks",
         "playlists.title" to "Playlists",
         "playlists.create" to "Neue Playlist",
@@ -50,6 +49,8 @@ object Strings {
         "analysis.total" to "Gesamt",
         "analysis.queued" to "Warteschlange",
         "analysis.error" to "Fehler",
+        "analysis.bpm_range" to "BPM-Bereich: %.0f - %.0f",
+        "analysis.keys" to "Keys: %s",
         "library.title" to "Bibliothek",
         "library.tab_tracks" to "Tracks",
         "library.tab_playlists" to "Playlists",
@@ -90,105 +91,13 @@ object Strings {
         "volume.folder" to "Ordner",
     )
 
-    private val en = mapOf(
-        "nav.home" to "Home",
-        "nav.folders" to "Folders",
-        "nav.playlists" to "Playlists",
-        "nav.library" to "Library",
-        "nav.usb" to "USB Drive",
-        "nav.sync" to "Sync",
-        "home.title" to "DJ Engine",
-        "home.subtitle" to "Music Library Manager",
-        "home.select_usb" to "Select Storage",
-        "home.browse_folders" to "Browse Folders",
-        "home.start_analysis" to "Start Analysis",
-        "home.library" to "Library",
-        "home.tracks" to "Tracks",
-        "home.analyzed" to "Analyzed",
-        "home.playlists_count" to "Playlists",
-        "usb.title" to "Storage",
-        "usb.subtitle" to "Select a storage device with your music collection",
-        "usb.scan" to "Scan",
-        "usb.manual_folder" to "Manual Folder",
-        "usb.scanning" to "Scanning drives...",
-        "usb.no_devices" to "No drives found",
-        "usb.selected" to "Selected",
-        "usb.tracks" to "Tracks",
-        "usb.engine_found" to "Engine DJ Database found",
-        "usb.no_engine" to "No Engine DJ Database",
-        "folders.title" to "Folders",
-        "folders.search" to "Search folders...",
-        "folders.empty" to "No folders found",
-        "folders.scan" to "Scan",
-        "folders.analyze" to "Analyze Folder",
-        "folders.create_playlist" to "Create Playlist",
-        "folders.tracks_count" to "%d tracks",
-        "playlists.title" to "Playlists",
-        "playlists.create" to "New Playlist",
-        "playlists.create_prompt" to "Playlist name:",
-        "playlists.empty" to "No playlists yet",
-        "playlists.save" to "Save",
-        "playlists.sync" to "Sync to Storage",
-        "analysis.title" to "Analysis",
-        "analysis.complete" to "Analysis complete",
-        "analysis.stop" to "Stop",
-        "analysis.total" to "Total",
-        "analysis.queued" to "Queue",
-        "analysis.error" to "Error",
-        "library.title" to "Library",
-        "library.tab_tracks" to "Tracks",
-        "library.tab_playlists" to "Playlists",
-        "library.tab_devices" to "Devices",
-        "library.search" to "Search tracks...",
-        "library.empty_tracks" to "No tracks imported yet",
-        "library.empty_playlists" to "No playlists yet",
-        "library.empty_devices" to "No devices detected",
-        "library.import_from_device" to "Import from device",
-        "library.detect_devices" to "Detect Devices",
-        "library.engine_db_found" to "Engine DJ Database found",
-        "library.engine_db_missing" to "No Engine DJ Database",
-        "library.track_count" to "%d tracks",
-        "library.playlist_count" to "%d playlists",
-        "library.add_to_playlist" to "Add to Playlist",
-        "library.new_playlist" to "New Playlist",
-        "sync.title" to "Sync",
-        "sync.target" to "Target",
-        "sync.start" to "Start Sync",
-        "sync.progress" to "Syncing...",
-        "sync.complete" to "Sync complete",
-        "sync.error" to "Sync failed",
-        "sync.last_sync" to "Last sync: %s",
-        "sync.compatibility" to "Compatibility",
-        "sync.format_info" to "SQLite / Camelot / SC Live 4 compatible",
-        "sync.done" to "Done! %d tracks, %d playlists.",
-        "common.cancel" to "Cancel",
-        "common.save" to "Save",
-        "common.loading" to "Loading...",
-        "engine.db_open_error" to "Could not open m.db",
-        "engine.db_write_error" to "Could not write m.db to device",
-        "engine.usb_not_found" to "No USB drive found",
-        "engine.no_analyzed_tracks" to "No analyzed tracks found",
-        "engine.write_success" to "%d tracks + playlist written to USB",
-        "engine.write_error" to "Error: %s",
-        "volume.internal" to "Internal Storage",
-        "volume.usb_manual" to "USB drive (manual)",
-        "volume.folder" to "Folder",
-    )
-
-    private val maps = mapOf("de" to de, "en" to en)
-
-    operator fun get(key: String): String {
-        val lang = currentLocale.language
-        val deMap = requireNotNull(maps["de"]) { "de locale map missing" }
-        val map = maps[lang] ?: deMap
-        return map[key] ?: deMap[key] ?: key
-    }
+    operator fun get(key: String): String = strings[key] ?: key
 
     fun t(key: String): String = get(key)
 
     fun t(key: String, vararg args: Any): String {
         return try {
-            String.format(currentLocale, get(key), *args)
+            String.format(java.util.Locale.GERMAN, get(key), *args)
         } catch (_: Exception) {
             get(key)
         }

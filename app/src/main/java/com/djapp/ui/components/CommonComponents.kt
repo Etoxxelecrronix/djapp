@@ -1,12 +1,12 @@
 package com.djapp.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,10 +31,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -101,25 +99,25 @@ fun TrackListItem(
                 onLongClick = onLongClick
             ),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.InsertDriveFile,
                 contentDescription = null,
                 tint = if (isAnalyzed) Primary else OnSurfaceVariant,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodySmall,
                     color = OnSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -127,14 +125,14 @@ fun TrackListItem(
                 if (artist.isNotBlank()) {
                     Text(
                         text = artist,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = OnSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (bpm != null) BpmBadge(bpm = bpm)
                 if (key != null) KeyBadge(key = key)
             }
@@ -159,25 +157,25 @@ fun FolderListItem(
                 onLongClick = onLongClick
             ),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Folder,
                 contentDescription = null,
                 tint = BpmBadge,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = name,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodySmall,
                     color = OnSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -186,21 +184,21 @@ fun FolderListItem(
                     text = "$trackCount Tracks${
                         if (analyzedCount > 0) " · $analyzedCount analysiert" else ""
                     }",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = OnSurfaceVariant
                 )
             }
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(8.dp),
                 color = if (analyzedCount == trackCount && trackCount > 0) Primary else SurfaceVariant,
-                modifier = Modifier.height(24.dp)
+                modifier = Modifier.height(20.dp)
             ) {
                 Text(
                     text = "$trackCount",
                     color = if (analyzedCount == trackCount && trackCount > 0) Secondary else OnSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
         }
@@ -224,25 +222,25 @@ fun PlaylistListItem(
                 onLongClick = onLongClick
             ),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.PlaylistPlay,
                 contentDescription = null,
                 tint = Primary,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodySmall,
                     color = OnSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -251,7 +249,7 @@ fun PlaylistListItem(
                     text = "$trackCount Tracks${
                         if (syncedAt != null) " · Synced: $syncedAt" else ""
                     }",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = OnSurfaceVariant
                 )
             }
@@ -264,7 +262,7 @@ fun EmptyState(message: String, icon: ImageVector = Icons.Default.Folder) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(48.dp),
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -272,12 +270,12 @@ fun EmptyState(message: String, icon: ImageVector = Icons.Default.Folder) {
             imageVector = icon,
             contentDescription = null,
             tint = OnSurfaceVariant.copy(alpha = 0.4f),
-            modifier = Modifier.size(64.dp)
+            modifier = Modifier.size(40.dp)
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = message,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = OnSurfaceVariant.copy(alpha = 0.6f)
         )
     }
@@ -285,16 +283,11 @@ fun EmptyState(message: String, icon: ImageVector = Icons.Default.Folder) {
 
 @Composable
 fun LoadingOverlay(isLoading: Boolean) {
-    val alpha by animateFloatAsState(
-        targetValue = if (isLoading) 1f else 0f,
-        label = "loading_alpha"
-    )
     if (isLoading) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Secondary.copy(alpha = 0.8f * alpha))
-                .alpha(alpha),
+                .background(Secondary),
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator(color = Primary)
@@ -337,14 +330,13 @@ fun GreenButton(
             disabledContainerColor = Primary.copy(alpha = 0.5f),
             disabledContentColor = Secondary.copy(alpha = 0.5f)
         ),
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(48.dp)
+        shape = RoundedCornerShape(6.dp),
+        modifier = modifier.height(36.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold
         )
     }
@@ -365,14 +357,13 @@ fun OutlinedGreenButton(
             disabledContentColor = Primary.copy(alpha = 0.5f)
         ),
         border = ButtonDefaults.outlinedButtonBorder,
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(48.dp)
+        shape = RoundedCornerShape(6.dp),
+        modifier = modifier.height(36.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold
         )
     }

@@ -113,7 +113,7 @@ fun AppNavigation() {
                 HomePage(
                     onNavigateToUsbStick = { navController.navigate(Screen.UsbStick.route) },
                     onNavigateToFolders = { navController.navigate(Screen.FolderBrowser.route) },
-                    onNavigateToAnalysis = { navController.navigate(Screen.AnalysisProgress.createRoute("")) },
+                    onNavigateToAnalysis = { path -> navController.navigate(Screen.AnalysisProgress.createRoute(path)) },
                     onNavigateToLibrary = { navController.navigate(Screen.Library.route) },
                 )
             }

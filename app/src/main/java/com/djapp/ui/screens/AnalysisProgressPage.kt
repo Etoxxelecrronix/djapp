@@ -193,66 +193,65 @@ fun AnalysisProgressPage(folderPath: String) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         Text(
             text = Strings.t("analysis.title"),
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
             color = OnSurface,
             fontWeight = FontWeight.Bold
         )
         Text(
             text = folderPath.ifBlank { Strings.t("folders.title") },
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = OnSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(8.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (isRunning) {
                         CircularProgressIndicator(
                             progress = { overallProgress },
-                            modifier = Modifier
-                                .size(100.dp),
+                            modifier = Modifier.size(72.dp),
                             color = Primary,
                             trackColor = SurfaceVariant,
-                            strokeWidth = 8.dp
+                            strokeWidth = 5.dp
                         )
                     } else {
                         CircularProgressIndicator(
                             progress = { if (totalCount > 0) 1f else 0f },
-                            modifier = Modifier.size(100.dp),
+                            modifier = Modifier.size(80.dp),
                             color = if (doneCount == totalCount && totalCount > 0) Primary else SurfaceVariant,
                             trackColor = SurfaceVariant,
-                            strokeWidth = 8.dp
+                            strokeWidth = 6.dp
                         )
                     }
                     Text(
                         text = if (totalCount > 0) "${(overallProgress * 100).toInt()}%" else "0%",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = OnSurface,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 if (totalCount > 0) {
                     Text(
                         text = "$doneCount / $totalCount ${Strings.t("home.tracks")}",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = OnSurface,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -266,13 +265,13 @@ fun AnalysisProgressPage(folderPath: String) {
                 } else {
                     Text(
                         text = scanMessage.ifBlank { Strings.t("analysis.title") },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = OnSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (!isStarted || !isRunning) {
@@ -285,18 +284,18 @@ fun AnalysisProgressPage(folderPath: String) {
                         OutlinedButton(
                             onClick = { stopAnalysis() },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(6.dp)
                         ) {
-                            Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(Strings.t("analysis.stop"))
+                            Text(Strings.t("analysis.stop"), style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (doneCount > 0 && !isRunning) {
             Card(
@@ -304,56 +303,58 @@ fun AnalysisProgressPage(folderPath: String) {
                 colors = CardDefaults.cardColors(containerColor = Primary.copy(alpha = 0.12f)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = Strings.t("analysis.complete"),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = Primary,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${Strings.t("home.analyzed")}: $doneCount",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = OnSurface
                     )
                     if (analyzedBpm.isNotEmpty()) {
                         Text(
-                            text = "BPM-Bereich: ${String.format("%.0f", analyzedBpm.min())} - ${String.format("%.0f", analyzedBpm.max())}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = Strings.t("analysis.bpm_range", analyzedBpm.min(), analyzedBpm.max()),
+                            style = MaterialTheme.typography.bodySmall,
                             color = OnSurface
                         )
                     }
                     if (analyzedKeys.isNotEmpty()) {
+                        val keySummary = analyzedKeys.groupingBy { it }.eachCount().entries.joinToString { "${it.key} (${it.value})" }
                         Text(
-                            text = "Keys: ${analyzedKeys.groupingBy { it }.eachCount().entries.joinToString { "${it.key} (${it.value})" }}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = Strings.t("analysis.keys", keySummary),
+                            style = MaterialTheme.typography.bodySmall,
                             color = OnSurface
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     GreenButton(
                         text = Strings.t("playlists.sync"),
-                        onClick = { showUsbWriteDialog = true }
+                        onClick = { showUsbWriteDialog = true },
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedButton(
                         onClick = { showCreatePlaylistDialog = true },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(6.dp)
                     ) {
-                        Text(Strings.t("common.save"), color = OnSurfaceVariant)
+                        Text(Strings.t("common.save"), color = OnSurfaceVariant, style = MaterialTheme.typography.labelLarge)
                     }
                     if (usbWriteResult != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = usbWriteResult ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = if (usbWriteHadError) ErrorRed else Primary
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
         }
 
         if (items.isEmpty()) {
@@ -371,12 +372,12 @@ fun AnalysisProgressPage(folderPath: String) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = CardBackground),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(4.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -393,36 +394,36 @@ fun AnalysisProgressPage(folderPath: String) {
                                     TrackStatus.ERROR -> ErrorRed
                                     TrackStatus.QUEUED -> OnSurfaceVariant
                                 },
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = item.filename,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = OnSurface
-                                )
-                                if (item.status == TrackStatus.ANALYZING && item.progress > 0f) {
-                                    LinearProgressIndicator(
-                                        progress = { item.progress },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 4.dp),
-                                        color = Primary,
-                                        trackColor = SurfaceVariant
-                                    )
-                                }
-                                if (item.status == TrackStatus.ERROR && item.error != null) {
-                                    Text(
-                                        text = item.error,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = ErrorRed
-                                    )
-                                }
-                            }
-                            item.result?.bpm?.let { BpmBadge(bpm = it) }
-                            item.result?.camelotKey?.let { key ->
-                                Spacer(modifier = Modifier.width(4.dp))
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurface
+                )
+                if (item.status == TrackStatus.ANALYZING && item.progress > 0f) {
+                    LinearProgressIndicator(
+                        progress = { item.progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp),
+                        color = Primary,
+                        trackColor = SurfaceVariant
+                    )
+                }
+                if (item.status == TrackStatus.ERROR && item.error != null) {
+                    Text(
+                        text = item.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ErrorRed
+                    )
+                }
+            }
+            item.result?.bpm?.let { BpmBadge(bpm = it) }
+            item.result?.camelotKey?.let { key ->
+                Spacer(modifier = Modifier.width(4.dp))
                                 KeyBadge(key = key)
                             }
                         }
