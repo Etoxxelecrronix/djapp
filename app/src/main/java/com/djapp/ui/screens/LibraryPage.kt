@@ -525,7 +525,7 @@ private fun NewPlaylistDialog(
     onDismiss: () -> Unit,
     onCreate: (String) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
+    var name: String by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -534,7 +534,7 @@ private fun NewPlaylistDialog(
         text = {
             OutlinedTextField(
                 value = name,
-                onValueChange = { newName -> name = newName },
+                onValueChange = { newName: String -> name = newName },
                 label = { Text(Strings.t("playlists.create_prompt")) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
