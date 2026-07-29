@@ -50,3 +50,11 @@ jobs:
       - name: Build Release APK (unsigned – Signing nur lokal, ProGuard-Test)
         continue-on-error: true
         run: ./gradlew assembleRelease
+
+      - name: Upload Release APK (unsigned)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: djapp-release-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 14
