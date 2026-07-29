@@ -12,6 +12,9 @@ sealed class Screen(val route: String, val titleKey: String) {
         fun createRoute(folderPath: String) =
             "analysis_progress/${java.net.URLEncoder.encode(folderPath, "UTF-8")}"
     }
+    object TrackDetail : Screen("track_detail/{trackId}", "track.title") {
+        fun createRoute(trackId: Long) = "track_detail/$trackId"
+    }
     object UsbStick : Screen("usb_stick", "nav.usb")
     object Library : Screen("library", "nav.library")
     object SyncSettings : Screen("sync_settings", "nav.sync")

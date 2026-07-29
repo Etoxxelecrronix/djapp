@@ -16,15 +16,15 @@ data class EngineSyncResult(
 
 object EngineDJSync {
 
-    fun fileTypeFromExt(ext: String): Int = when (ext.lowercase()) {
-        "mp3" -> 1
-        "aif", "aiff" -> 2
-        "wav" -> 3
-        "flac" -> 4
-        "ogg" -> 5
-        "mp4", "m4a" -> 6
-        "alac" -> 7
-        else -> 0
+    private fun fileTypeFromExt(ext: String): String = when (ext.lowercase()) {
+        "mp3" -> "mp3"
+        "aif", "aiff" -> "aiff"
+        "wav" -> "wav"
+        "flac" -> "flac"
+        "ogg" -> "ogg"
+        "mp4", "m4a" -> "m4a"
+        "alac" -> "alac"
+        else -> ext.lowercase()
     }
 
     suspend fun syncToEngineDJ(
@@ -64,15 +64,13 @@ object EngineDJSync {
                     if (existingId != null) {
                         db.execSQL(
                             """UPDATE Track SET title=?,artist=?,album=?,genre=?,comment=?,label=?,
-                               bpm=?,bpmAnalyzed=?,year=?,fileType=?,isAnalyzed=?,rating=?,
-                               colorRed=?,colorGreen=?,colorBlue=?,lastEditTime=datetime('now')
+                               bpm=?,bpmAnalyzed=?,year=?,fileType=?,isAnalyzed=?,rating=?
                                WHERE id=?""",
                             arrayOf(
                                 track.title, track.artist, track.album, track.genre,
                                 track.comment, track.label, bpmInt, track.bpmAnalyzed,
                                 track.year, fileType, if (track.isAnalyzed) 1 else 0,
-                                (track.rating / 20).coerceIn(0, 5),
-                                track.colorR, track.colorG, track.colorB, existingId,
+                                (track.rating / 20).coerceIn(0, 5), existingId,
                             )
                         )
                         trackIdMap[track.id] = existingId
@@ -81,15 +79,14 @@ object EngineDJSync {
                             """INSERT INTO Track
                                (path, filename, title, artist, album, genre, comment, label,
                                 bpm, bpmAnalyzed, year, fileType, isAnalyzed, isAvailable,
-                                rating, colorRed, colorGreen, colorBlue, dateAdded, lastEditTime)
-                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,datetime('now'),datetime('now'))""",
+                                rating, dateCreated, dateAdded)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,datetime('now'),datetime('now'))""",
                             arrayOf(
                                 relPath, track.filename, track.title, track.artist,
                                 track.album, track.genre, track.comment, track.label,
                                 bpmInt, track.bpmAnalyzed, track.year, fileType,
                                 if (track.isAnalyzed) 1 else 0,
                                 (track.rating / 20).coerceIn(0, 5),
-                                track.colorR, track.colorG, track.colorB,
                             )
                         )
                         val cursor = db.rawQuery("SELECT last_insert_rowid()", null)
@@ -117,7 +114,7 @@ object EngineDJSync {
                     } else {
                         existing.close()
                         db.execSQL(
-                            "INSERT INTO Playlist (title, isPersisted, flags) VALUES (?,1,0)",
+                            "INSERT INTO Playlist (title, isPersisted) VALUES (?,1)",
                             arrayOf(playlist.title)
                         )
                         val cursor = db.rawQuery("SELECT last_insert_rowid()", null)
@@ -130,8 +127,8 @@ object EngineDJSync {
                         val engineTrackId = trackIdMap[track.id] ?: continue
                         db.execSQL(
                             """INSERT INTO PlaylistEntity
-                               (listId, trackId, databaseUuid, membershipReference, dateAdded)
-                               VALUES (?,?,hex(randomblob(16)),0,strftime('%s','now'))""",
+                               (listId, trackId, databaseUuid, membershipReference)
+                               VALUES (?,?,hex(randomblob(16)),0)""",
                             arrayOf(enginePlaylistId, engineTrackId)
                         )
                     }
@@ -188,7 +185,7 @@ object EngineDJSync {
                     if (existingId != null) {
                         db.execSQL(
                             """UPDATE Track SET title=?, bpm=?, bpmAnalyzed=?,
-                               isAnalyzed=?, fileType=?, lastEditTime=datetime('now')
+                               isAnalyzed=?, fileType=?
                                WHERE id=?""",
                             arrayOf(
                                 filename.replace(Regex("\\.[^.]+$"), ""),
@@ -202,7 +199,7 @@ object EngineDJSync {
                         db.execSQL(
                             """INSERT INTO Track
                                (path, filename, title, bpm, bpmAnalyzed, fileType,
-                                isAnalyzed, isAvailable, dateAdded, lastEditTime)
+                                isAnalyzed, isAvailable, dateCreated, dateAdded)
                                VALUES (?,?,?,?,?,?,?,1,datetime('now'),datetime('now'))""",
                             arrayOf(
                                 relPath, filename,
@@ -224,7 +221,7 @@ object EngineDJSync {
             if (playlistName != null && engineTrackIds.isNotEmpty()) {
                 try {
                     db.execSQL(
-                        "INSERT INTO Playlist (title, isPersisted, flags) VALUES (?,1,0)",
+                        "INSERT INTO Playlist (title, isPersisted) VALUES (?,1)",
                         arrayOf(playlistName)
                     )
                     val cursor = db.rawQuery("SELECT last_insert_rowid()", null)
@@ -234,8 +231,8 @@ object EngineDJSync {
                     for (trackId in engineTrackIds) {
                         db.execSQL(
                             """INSERT INTO PlaylistEntity
-                               (listId, trackId, databaseUuid, membershipReference, dateAdded)
-                               VALUES (?,?,hex(randomblob(16)),0,strftime('%s','now'))""",
+                               (listId, trackId, databaseUuid, membershipReference)
+                               VALUES (?,?,hex(randomblob(16)),0)""",
                             arrayOf(playlistId, trackId)
                         )
                     }
@@ -267,6 +264,7 @@ object EngineDJSync {
     ) {
         val plDir = File(volumePath, "Engine Library/Playlists")
         if (!plDir.exists()) plDir.mkdirs()
+        val volumeRoot = volumePath.trimEnd('/')
 
         try {
             val safe = playlistName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
@@ -282,8 +280,9 @@ object EngineDJSync {
                         result?.camelotKey?.let { append(",key=$it") }
                         append(",$info")
                     }
+                    val relPath = EngineDJDatabase.engineRelativePath(path, volumeRoot)
                     w.write("$extInf\n")
-                    w.write("$path\n")
+                    w.write("$relPath\n")
                 }
             }
         } catch (e: Exception) {
@@ -297,6 +296,7 @@ object EngineDJSync {
     ) {
         val plDir = File(volumePath, "Engine Library/Playlists")
         if (!plDir.exists()) plDir.mkdirs()
+        val volumeRoot = volumePath.trimEnd('/')
 
         for ((playlist, tracks) in playlists) {
             try {
@@ -314,8 +314,9 @@ object EngineDJSync {
                             t.keyCamelot?.let { append(",key=$it") }
                             append(",$info")
                         }
+                        val relPath = EngineDJDatabase.engineRelativePath(t.path, volumeRoot)
                         w.write("$extInf\n")
-                        w.write("${t.path}\n")
+                        w.write("$relPath\n")
                     }
                 }
             } catch (e: Exception) {

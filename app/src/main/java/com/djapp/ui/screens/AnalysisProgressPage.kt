@@ -56,7 +56,9 @@ import com.djapp.analysis.TrackStatus
 import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolumeDetector
+import com.djapp.engine.InternalEngineDB
 import com.djapp.scanner.MusicScanner
+import com.djapp.scanner.ScanResult
 import com.djapp.i18n.Strings
 import com.djapp.ui.components.BpmBadge
 import com.djapp.ui.components.EmptyState
@@ -101,6 +103,20 @@ fun AnalysisProgressPage(folderPath: String) {
     val analyzedBpm = items.mapNotNull { it.result?.bpm }
     val analyzedKeys = items.mapNotNull { it.result?.camelotKey }
 
+    var showDuplicateWarning by remember { mutableStateOf(false) }
+    var pendingScanResult by remember { mutableStateOf<ScanResult?>(null) }
+
+    fun enqueueScanResult(scanResult: ScanResult) {
+        scanMessage = Strings.t("analysis.total") + ": ${scanResult.totalTracks} ${Strings.t("home.tracks")}"
+        val trackPairs = scanResult.folders.flatMap { folder ->
+            folder.tracks.map { scanTrack ->
+                val file = File(scanTrack.path)
+                Uri.fromFile(file) to scanTrack.name
+            }
+        }
+        AnalysisQueue.enqueue(trackPairs, context)
+    }
+
     fun startAnalysis() {
         if (folderPath.isBlank()) return
         isStarted = true
@@ -114,14 +130,20 @@ fun AnalysisProgressPage(folderPath: String) {
                 isStarted = false
                 return@launch
             }
-            scanMessage = Strings.t("analysis.total") + ": ${scanResult.totalTracks} ${Strings.t("home.tracks")}"
-            val trackPairs = scanResult.folders.flatMap { folder ->
-                folder.tracks.map { scanTrack ->
-                    val file = File(scanTrack.path)
-                    Uri.fromFile(file) to scanTrack.name
-                }
+
+            val existingCount = withContext(Dispatchers.IO) {
+                scanResult.folders.flatMap { f -> f.tracks.map { it.path } }
+                    .count { path -> db.getTrackByPath(path) != null }
             }
-            AnalysisQueue.enqueue(trackPairs, context)
+
+            if (existingCount > 0) {
+                pendingScanResult = scanResult
+                showDuplicateWarning = true
+                isStarted = false
+                return@launch
+            }
+
+            enqueueScanResult(scanResult)
         }
     }
 
@@ -135,10 +157,20 @@ fun AnalysisProgressPage(folderPath: String) {
             withContext(Dispatchers.IO) {
                 val plId = db.createPlaylist(playlistName)
                 val doneItems = items.filter { it.status == TrackStatus.DONE && it.trackId != null }
-                for ((pos, item) in doneItems.withIndex()) {
+                val seenTrackIds = mutableSetOf<Long>()
+                val existingTrackIds = db.playlistDao().getTracks(plId).map { it.id }.toSet()
+                var pos = existingTrackIds.size
+                for (item in doneItems) {
                     val tid = item.trackId ?: continue
+                    if (tid in seenTrackIds || tid in existingTrackIds) continue
+                    seenTrackIds.add(tid)
                     db.addTrackToPlaylist(plId, tid, pos)
+                    pos++
                 }
+                InternalEngineDB.syncFromRoom(context)
+                com.djapp.util.ActionHistory.push(
+                    com.djapp.util.UndoAction.ImportFolder(plId, playlistName)
+                )
             }
             showCreatePlaylistDialog = false
         }
@@ -174,6 +206,8 @@ fun AnalysisProgressPage(folderPath: String) {
                     }
                     Triple(filePath, item.filename, item.result)
                 }
+                InternalEngineDB.syncFromRoom(context)
+                InternalEngineDB.exportToUsb(context, usbVolume.path)
                 val syncResult = EngineDJSync.writeAnalysisResultsToUsb(
                     context, usbVolume.path, tracks, playlistName
                 )
@@ -513,6 +547,69 @@ fun AnalysisProgressPage(folderPath: String) {
             },
             dismissButton = {
                 TextButton(onClick = { showUsbWriteDialog = false }, enabled = !isWritingToUsb) {
+                    Text(Strings.t("common.cancel"), color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showDuplicateWarning && pendingScanResult != null) {
+        val sr = pendingScanResult!!
+        var duplicateExistingCount = 0
+        scope.launch {
+            duplicateExistingCount = withContext(Dispatchers.IO) {
+                sr.folders.flatMap { f -> f.tracks.map { it.path } }
+                    .count { path -> db.getTrackByPath(path) != null }
+            }
+        }
+        val total = sr.totalTracks
+        AlertDialog(
+            onDismissRequest = {
+                showDuplicateWarning = false
+                pendingScanResult = null
+            },
+            title = { Text(Strings.t("folders.duplicate_title"), color = OnSurface) },
+            text = {
+                Text(
+                    text = Strings.t("folders.duplicate_warning", duplicateExistingCount, total),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurface
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDuplicateWarning = false
+                        scope.launch {
+                            val existingPaths = withContext(Dispatchers.IO) {
+                                sr.folders.flatMap { f -> f.tracks.map { it.path } }
+                                    .filter { path -> db.getTrackByPath(path) != null }
+                                    .toSet()
+                            }
+                            val newTracks = sr.folders.flatMap { f ->
+                                f.tracks.filter { it.path !in existingPaths }
+                            }
+                            scanMessage = "${Strings.t("analysis.total")}: ${newTracks.size} ${Strings.t("home.tracks")}"
+                            val trackPairs = newTracks.map { scanTrack ->
+                                android.net.Uri.fromFile(java.io.File(scanTrack.path)) to scanTrack.name
+                            }
+                            if (trackPairs.isNotEmpty()) {
+                                com.djapp.analysis.AnalysisQueue.enqueue(trackPairs, context)
+                                isStarted = true
+                            }
+                            pendingScanResult = null
+                        }
+                    }
+                ) {
+                    Text(Strings.t("folders.duplicate_confirm_add"), color = Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDuplicateWarning = false
+                    pendingScanResult = null
+                }) {
                     Text(Strings.t("common.cancel"), color = Primary)
                 }
             },

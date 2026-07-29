@@ -41,3 +41,8 @@ npm-debug.log
 
 # DataStore
 *.preferences_pb
+
+# Engine DJ data / user data
+338C-D70A/
+Engine Library/
+Project/

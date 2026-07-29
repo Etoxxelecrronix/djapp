@@ -39,7 +39,13 @@ interface PlaylistDao {
     """)
     suspend fun getById(id: Long): PlaylistWithCount?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Query("""
+        SELECT p.*, (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlistId = p.id) as trackCount
+        FROM playlists p WHERE p.title = :title LIMIT 1
+    """)
+    suspend fun getByTitle(title: String): PlaylistWithCount?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(playlist: PlaylistEntity): Long
 
     @Query("UPDATE playlists SET title = :title WHERE id = :id")

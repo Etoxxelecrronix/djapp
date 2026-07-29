@@ -25,26 +25,19 @@ data class EngineTrack(
     val genre: String,
     val comment: String,
     val label: String,
-    val fileType: Int,
+    val fileType: String?,
     val isAnalyzed: Int,
     val isAvailable: Int,
-    val isRhythmAnalyzed: Int,
     val fileBytes: Long?,
     val rating: Int,
-    val colorRed: Int?,
-    val colorGreen: Int?,
-    val colorBlue: Int?,
 )
 
 data class EnginePlaylist(
     val id: Long,
     val title: String,
-    val parentId: Long?,
+    val parentListId: Long?,
     val isPersisted: Int,
     val nextListId: Long?,
-    val firstTrackId: Long?,
-    val lastTrackId: Long?,
-    val flags: Int,
 )
 
 data class EnginePlaylistTrack(
@@ -86,11 +79,20 @@ object EngineDJDatabase {
     fun openEngineDb(context: Context, volumePath: String): SQLiteDatabase? {
         return try {
             ensureTempDb(context, volumePath)
-            val db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
-            bootstrapEngineSchema(db)
-            db
+            return try {
+                val db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+                bootstrapEngineSchema(db)
+                db
+            } catch (e1: Exception) {
+                Log.w("EngineDJDB", "openEngineDb failed (corrupted?), retrying with fresh db", e1)
+                val tempFile = File(getTempDbPath(context))
+                if (tempFile.exists()) tempFile.delete()
+                val db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+                bootstrapEngineSchema(db)
+                db
+            }
         } catch (e: Exception) {
-            Log.e("EngineDJDB", "openEngineDb failed", e)
+            Log.e("EngineDJDB", "openEngineDb failed after retry", e)
             null
         }
     }
@@ -114,77 +116,175 @@ object EngineDJDatabase {
         }
     }
 
-    private fun bootstrapEngineSchema(db: SQLiteDatabase) {
+    fun bootstrapEngineSchema(db: SQLiteDatabase) {
         db.execSQL("PRAGMA journal_mode = WAL;")
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS Track (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 playOrder INTEGER,
                 length INTEGER,
-                lengthCalculated INTEGER,
                 bpm INTEGER,
                 year INTEGER,
-                path TEXT NOT NULL DEFAULT '',
-                filename TEXT NOT NULL DEFAULT '',
+                path TEXT,
+                filename TEXT,
                 bitrate INTEGER,
                 bpmAnalyzed REAL,
-                title TEXT NOT NULL DEFAULT '',
-                artist TEXT NOT NULL DEFAULT '',
-                album TEXT NOT NULL DEFAULT '',
-                genre TEXT NOT NULL DEFAULT '',
-                comment TEXT NOT NULL DEFAULT '',
-                label TEXT NOT NULL DEFAULT '',
-                fileType INTEGER NOT NULL DEFAULT 0,
-                isAnalyzed INTEGER NOT NULL DEFAULT 0,
-                dateAdded INTEGER,
-                isAvailable INTEGER NOT NULL DEFAULT 1,
-                isRhythmAnalyzed INTEGER NOT NULL DEFAULT 0,
+                albumArtId INTEGER,
                 fileBytes INTEGER,
-                rating INTEGER NOT NULL DEFAULT 0,
-                musicBrainzId TEXT,
-                uri TEXT,
-                colorRed INTEGER,
-                colorGreen INTEGER,
-                colorBlue INTEGER
+                title TEXT,
+                artist TEXT,
+                album TEXT,
+                genre TEXT,
+                comment TEXT,
+                label TEXT,
+                composer TEXT,
+                remixer TEXT,
+                key INTEGER,
+                rating INTEGER DEFAULT 0,
+                albumArt TEXT,
+                timeLastPlayed DATETIME,
+                isPlayed INTEGER DEFAULT 0,
+                fileType TEXT,
+                isAnalyzed INTEGER DEFAULT 0,
+                dateCreated DATETIME,
+                dateAdded DATETIME,
+                isAvailable INTEGER DEFAULT 1,
+                isMetadataOfPackedTrackChanged INTEGER DEFAULT 0,
+                lastEditTime DATETIME,
+                originTrackId INTEGER,
+                originDatabaseUuid TEXT
             )
         """)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS Playlist (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL DEFAULT '',
-                parentId INTEGER,
-                isPersisted INTEGER NOT NULL DEFAULT 1,
+                title TEXT,
+                parentListId INTEGER,
+                isPersisted INTEGER DEFAULT 1,
                 nextListId INTEGER,
-                firstTrackId INTEGER,
-                lastTrackId INTEGER,
-                flags INTEGER NOT NULL DEFAULT 0
+                lastEditTime DATETIME,
+                isExplicitlyExported INTEGER DEFAULT 0
             )
         """)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS PlaylistEntity (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                listId INTEGER NOT NULL,
-                trackId INTEGER NOT NULL,
-                databaseUuid TEXT NOT NULL DEFAULT '',
+                listId INTEGER,
+                trackId INTEGER,
+                databaseUuid TEXT,
                 nextEntityId INTEGER,
-                membershipReference INTEGER NOT NULL DEFAULT 0,
-                dateAdded INTEGER
+                membershipReference INTEGER DEFAULT 0
             )
         """)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS PerformanceData (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                isAnalyzed INTEGER NOT NULL DEFAULT 0,
-                isRendered INTEGER NOT NULL DEFAULT 0,
+                trackId INTEGER PRIMARY KEY,
                 trackData BLOB,
-                highResolutionWaveformData BLOB,
-                overviewWaveformData BLOB,
+                overviewWaveFormData BLOB,
                 beatData BLOB,
                 quickCues BLOB,
                 loops BLOB,
-                activeOnLoadCueNum INTEGER NOT NULL DEFAULT -1,
-                lastEditTime TEXT
+                thirdPartySourceId INTEGER,
+                activeOnLoadLoops INTEGER DEFAULT 0
             )
+        """)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS Information (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT,
+                schemaVersionMajor INTEGER DEFAULT 1,
+                schemaVersionMinor INTEGER DEFAULT 0,
+                schemaVersionPatch INTEGER DEFAULT 0,
+                currentPlayedIndiciator INTEGER DEFAULT 0,
+                lastRekordBoxLibraryImportReadCounter INTEGER DEFAULT 0
+            )
+        """)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS Smartlist (
+                title TEXT NOT NULL DEFAULT '',
+                uuid TEXT,
+                parentPlaylistPath TEXT,
+                nextPlaylistPath TEXT,
+                nextListUuid TEXT
+            )
+        """)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS PreparelistEntity (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trackId INTEGER,
+                listId INTEGER
+            )
+        """)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS Pack (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                packId TEXT,
+                changeLogDatabaseUuid TEXT,
+                changeLogId INTEGER,
+                lastPackTime DATETIME
+            )
+        """)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS AlbumArt (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                hash TEXT,
+                albumArt BLOB
+            )
+        """)
+        db.execSQL("""
+            CREATE VIEW IF NOT EXISTS PlaylistPath AS
+            WITH RECURSIVE Heirarchy AS (
+                SELECT id AS child, parentListId AS parent, title AS name, 1 AS depth FROM Playlist
+                UNION ALL
+                SELECT child, parentListId AS parent, title AS name, h.depth + 1 AS depth FROM Playlist c
+                JOIN Heirarchy h ON h.parent = c.id
+            )
+            SELECT child AS playlistId, group_concat(name, ' / ') AS path FROM Heirarchy GROUP BY child
+        """)
+        db.execSQL("""
+            CREATE VIEW IF NOT EXISTS PlaylistAllChildren AS
+            WITH FindAllChild AS (
+                SELECT id, id as childListId FROM Playlist
+                UNION ALL
+                SELECT recursiveCTE.id, Plist.id FROM Playlist Plist
+                INNER JOIN FindAllChild recursiveCTE
+                ON recursiveCTE.childListId = Plist.parentListId
+            )
+            SELECT * FROM FindAllChild WHERE id <> childListId
+        """)
+        db.execSQL("""
+            CREATE VIEW IF NOT EXISTS PlaylistAllParent AS
+            WITH FindAllParent AS (
+                SELECT id, parentListId FROM Playlist
+                UNION ALL
+                SELECT recursiveCTE.id, Plist.parentListId FROM Playlist Plist
+                INNER JOIN FindAllParent recursiveCTE
+                ON recursiveCTE.parentListId = Plist.id
+            )
+            SELECT * FROM FindAllParent
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_Track_insert_performance_data
+            AFTER INSERT ON Track
+            BEGIN
+                INSERT OR IGNORE INTO PerformanceData(trackId) VALUES(NEW.id);
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_delete_List
+            AFTER DELETE ON Playlist
+            FOR EACH ROW BEGIN
+                UPDATE Playlist SET nextListId = OLD.nextListId WHERE nextListId = OLD.id;
+                DELETE FROM Playlist WHERE parentListId = OLD.id;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_before_insert_List
+            BEFORE INSERT ON Playlist
+            FOR EACH ROW BEGIN
+                UPDATE Playlist SET nextListId = -(1 + nextListId)
+                WHERE nextListId = NEW.nextListId AND parentListId = NEW.parentListId;
+            END
         """)
     }
 
@@ -201,6 +301,11 @@ object EngineDJDatabase {
     private fun nullableDouble(cursor: android.database.Cursor, column: String): Double? {
         val idx = cursor.getColumnIndex(column)
         return if (idx >= 0 && !cursor.isNull(idx)) cursor.getDouble(idx) else null
+    }
+
+    private fun nullableString(cursor: android.database.Cursor, column: String): String? {
+        val idx = cursor.getColumnIndex(column)
+        return if (idx >= 0 && !cursor.isNull(idx)) cursor.getString(idx) else null
     }
 
     fun readAllEngineTracks(context: Context, volumePath: String): List<EngineTrack> {
@@ -226,15 +331,11 @@ object EngineDJDatabase {
                             genre = cursor.getString(cursor.getColumnIndexOrThrow("genre")),
                             comment = cursor.getString(cursor.getColumnIndexOrThrow("comment")),
                             label = cursor.getString(cursor.getColumnIndexOrThrow("label")),
-                            fileType = cursor.getInt(cursor.getColumnIndexOrThrow("fileType")),
+                            fileType = nullableString(cursor, "fileType"),
                             isAnalyzed = cursor.getInt(cursor.getColumnIndexOrThrow("isAnalyzed")),
                             isAvailable = cursor.getInt(cursor.getColumnIndexOrThrow("isAvailable")),
-                            isRhythmAnalyzed = cursor.getInt(cursor.getColumnIndexOrThrow("isRhythmAnalyzed")),
                             fileBytes = nullableLong(cursor, "fileBytes"),
                             rating = cursor.getInt(cursor.getColumnIndexOrThrow("rating")),
-                            colorRed = nullableInt(cursor, "colorRed"),
-                            colorGreen = nullableInt(cursor, "colorGreen"),
-                            colorBlue = nullableInt(cursor, "colorBlue"),
                         )
                     )
                 }
@@ -255,12 +356,9 @@ object EngineDJDatabase {
                         EnginePlaylist(
                             id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
                             title = cursor.getString(cursor.getColumnIndexOrThrow("title")),
-                            parentId = nullableLong(cursor, "parentId"),
+                            parentListId = nullableLong(cursor, "parentListId"),
                             isPersisted = cursor.getInt(cursor.getColumnIndexOrThrow("isPersisted")),
                             nextListId = nullableLong(cursor, "nextListId"),
-                            firstTrackId = nullableLong(cursor, "firstTrackId"),
-                            lastTrackId = nullableLong(cursor, "lastTrackId"),
-                            flags = cursor.getInt(cursor.getColumnIndexOrThrow("flags")),
                         )
                     )
                 }

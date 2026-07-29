@@ -55,6 +55,7 @@ import com.djapp.data.local.entity.TrackEntity
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineSyncResult
 import com.djapp.engine.EngineVolumeDetector
+import com.djapp.engine.InternalEngineDB
 import com.djapp.i18n.Strings
 import com.djapp.scanner.FolderStat
 import com.djapp.scanner.MusicScanner
@@ -87,6 +88,8 @@ fun FolderBrowserPage(
     var scanProgress by remember { mutableStateOf("") }
     var folders by remember { mutableStateOf<List<FolderStat>>(emptyList()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
+    var showDuplicateImportWarning by remember { mutableStateOf(false) }
+    var pendingImportFolder by remember { mutableStateOf<FolderStat?>(null) }
 
     val prefs = remember { context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE) }
     val selectedPath = prefs.getString(PrefsKeys.SELECTED_PATH, null) ?: ""
@@ -110,15 +113,40 @@ fun FolderBrowserPage(
         }
     }
 
-    fun importFolderAsPlaylist(folder: FolderStat) {
+    fun doImportFolder(folder: FolderStat, onlyNew: Boolean = true) {
         scope.launch {
-            withContext(Dispatchers.IO) {
+            val plId = withContext(Dispatchers.IO) {
                 val tracks = folder.tracks.map {
                     Triple(it.path, it.name, it.extension)
                 }
-                db.importFolderAsPlaylist(folder.name, tracks)
+                val id = db.importFolderAsPlaylist(folder.name, tracks, onlyNew = onlyNew)
+                InternalEngineDB.syncFromRoom(context)
+                id
             }
+            com.djapp.util.ActionHistory.push(
+                com.djapp.util.UndoAction.ImportFolder(plId, folder.name)
+            )
             importMessage = "\"${folder.name}\" ${Strings.t("playlists.sync")}"
+        }
+    }
+
+    fun importFolderAsPlaylist(folder: FolderStat, forceAll: Boolean = false) {
+        scope.launch {
+            if (!forceAll) {
+                val existingCount = withContext(Dispatchers.IO) {
+                    folder.tracks.count { track -> db.getTrackByPath(track.path) != null }
+                }
+                if (existingCount > 0 && existingCount < folder.trackCount) {
+                    showDuplicateImportWarning = true
+                    pendingImportFolder = folder
+                    return@launch
+                }
+                if (existingCount >= folder.trackCount) {
+                    importMessage = Strings.t("folders.duplicate_all_exist", folder.trackCount)
+                    return@launch
+                }
+            }
+            doImportFolder(folder, onlyNew = !forceAll)
         }
     }
 
@@ -127,7 +155,9 @@ fun FolderBrowserPage(
             try {
                 val tracks = folder.tracks.map { Triple(it.path, it.name, it.extension) }
                 val plId = withContext(Dispatchers.IO) {
-                    db.importFolderAsPlaylist(folder.name, tracks)
+                    val id = db.importFolderAsPlaylist(folder.name, tracks)
+                    InternalEngineDB.syncFromRoom(context)
+                    id
                 }
 
                 val volume = withContext(Dispatchers.IO) {
@@ -139,6 +169,7 @@ fun FolderBrowserPage(
                 }
 
                 val result = withContext(Dispatchers.IO) {
+                    InternalEngineDB.exportToUsb(context, volume.path)
                     val allTracks = db.getAllTracks()
                     val pwc = db.playlistDao().getById(plId) ?: return@withContext EngineSyncResult(0, 0, listOf("playlist not found"))
                     val playlistTracks = db.playlistDao().getTracks(plId)
@@ -335,6 +366,66 @@ fun FolderBrowserPage(
             dismissButton = {
                 TextButton(onClick = { showContextMenu = false }) {
                     Text(Strings.t("common.cancel"), color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showDuplicateImportWarning && pendingImportFolder != null) {
+        val dupFolder = pendingImportFolder!!
+        var existingCount by remember { mutableStateOf(0) }
+        LaunchedEffect(dupFolder) {
+            existingCount = withContext(Dispatchers.IO) {
+                dupFolder.tracks.count { track -> db.getTrackByPath(track.path) != null }
+            }
+        }
+        val newCount = dupFolder.trackCount - existingCount
+        AlertDialog(
+            onDismissRequest = {
+                showDuplicateImportWarning = false
+                pendingImportFolder = null
+            },
+            title = { Text(Strings.t("folders.duplicate_title"), color = OnSurface) },
+            text = {
+                Column {
+                    Text(
+                        text = Strings.t("folders.duplicate_warning_file", dupFolder.name),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "$existingCount ${Strings.t("home.tracks")} vorhanden · $newCount neu",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDuplicateImportWarning = false
+                        doImportFolder(dupFolder, onlyNew = true)
+                    }
+                ) {
+                    Text(Strings.t("folders.duplicate_confirm_add"), color = Primary)
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = {
+                        showDuplicateImportWarning = false
+                        doImportFolder(dupFolder, onlyNew = false)
+                    }) {
+                        Text(Strings.t("folders.duplicate_add_all"), color = OnSurfaceVariant)
+                    }
+                    TextButton(onClick = {
+                        showDuplicateImportWarning = false
+                        pendingImportFolder = null
+                    }) {
+                        Text(Strings.t("common.cancel"), color = Primary)
+                    }
                 }
             },
             containerColor = CardBackground

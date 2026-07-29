@@ -31,7 +31,7 @@ data class LibraryStats(
         PlaylistTrackEntity::class,
         AnalysisResultEntity::class,
     ],
-    version = 2,
+    version = 4,
     exportSchema = false,
 )
 abstract class DJLibraryDatabase : RoomDatabase() {
@@ -50,6 +50,23 @@ abstract class DJLibraryDatabase : RoomDatabase() {
             db.execSQL("DROP TABLE IF EXISTS beatgrids")
         }
 
+        private val MIGRATION_2_3 = Migration(2, 3) { db ->
+            db.execSQL("DELETE FROM tracks WHERE id NOT IN (SELECT MIN(id) FROM tracks GROUP BY path)")
+            db.execSQL("DROP INDEX IF EXISTS index_tracks_path")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_tracks_path ON tracks(path)")
+            db.execSQL("DELETE FROM playlists WHERE id NOT IN (SELECT MIN(id) FROM playlists GROUP BY title)")
+            db.execSQL("DROP INDEX IF EXISTS index_playlists_title")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_playlists_title ON playlists(title)")
+        }
+
+        private val MIGRATION_3_4 = Migration(3, 4) { db ->
+            db.execSQL("DELETE FROM playlist_tracks WHERE rowid NOT IN (SELECT MIN(rowid) FROM playlist_tracks GROUP BY playlistId, trackId)")
+            db.execSQL("DROP INDEX IF EXISTS index_playlist_tracks_playlistId_position")
+            db.execSQL("DROP INDEX IF EXISTS index_playlist_tracks_playlistId_trackId")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_playlist_tracks_playlistId_trackId ON playlist_tracks(playlistId, trackId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_tracks_playlistId_position ON playlist_tracks(playlistId, position)")
+        }
+
         fun getInstance(context: Context): DJLibraryDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -57,7 +74,7 @@ abstract class DJLibraryDatabase : RoomDatabase() {
                     DJLibraryDatabase::class.java,
                     "dj_library_v1.db",
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
@@ -70,7 +87,25 @@ abstract class DJLibraryDatabase : RoomDatabase() {
     // ── Track convenience methods ──────────────────────────────────────────
 
     suspend fun upsertTrack(track: TrackEntity): Long {
-        return trackDao().upsert(track)
+        val existing = trackDao().getByPath(track.path)
+        if (existing != null) {
+            trackDao().update(
+                id = existing.id, path = track.path, filename = track.filename,
+                folder = track.folder, title = track.title, artist = track.artist,
+                album = track.album, genre = track.genre, year = track.year,
+                durationMs = track.durationMs, bpm = track.bpm,
+                bpmAnalyzed = track.bpmAnalyzed, keyCamelot = track.keyCamelot,
+                keyOpen = track.keyOpen, keyMusical = track.keyMusical,
+                lufs = track.lufs, rmsDb = track.rmsDb, peakDb = track.peakDb,
+                bitrate = track.bitrate, fileSize = track.fileSize,
+                fileType = track.fileType, rating = track.rating,
+                comment = track.comment, label = track.label,
+                colorR = track.colorR, colorG = track.colorG, colorB = track.colorB,
+                isAnalyzed = track.isAnalyzed, dateAdded = track.dateAdded,
+            )
+            return existing.id
+        }
+        return trackDao().insert(track)
     }
 
     suspend fun getTrackByPath(path: String): TrackEntity? {
@@ -88,6 +123,8 @@ abstract class DJLibraryDatabase : RoomDatabase() {
     // ── Playlist convenience methods ───────────────────────────────────────
 
     suspend fun createPlaylist(title: String, parentId: Long? = null, isFolder: Boolean = false): Long {
+        val existing = playlistDao().getByTitle(title)
+        if (existing != null) return existing.id
         return playlistDao().insert(
             PlaylistEntity(
                 title = title,
@@ -155,9 +192,15 @@ abstract class DJLibraryDatabase : RoomDatabase() {
     suspend fun importFolderAsPlaylist(
         folderName: String,
         tracks: List<Triple<String, String, String>>, // path, filename, extension
+        onlyNew: Boolean = true,
     ): Long {
         val plId = createPlaylist(folderName)
+        val existingPaths = if (onlyNew) {
+            trackDao().getAll().map { it.path }.toSet()
+        } else emptySet()
+        var pos = playlistDao().getTracks(plId).size
         tracks.forEachIndexed { i, (path, filename, _) ->
+            if (onlyNew && path in existingPaths) return@forEachIndexed
             val trackId = upsertTrack(
                 TrackEntity(
                     path = path,
@@ -168,7 +211,8 @@ abstract class DJLibraryDatabase : RoomDatabase() {
                     dateAdded = now(),
                 )
             )
-            addTrackToPlaylist(plId, trackId, i)
+            addTrackToPlaylist(plId, trackId, pos)
+            pos++
         }
         return plId
     }

@@ -28,8 +28,31 @@ interface TrackDao {
     """)
     suspend fun search(query: String): List<TrackEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(track: TrackEntity): Long
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(track: TrackEntity): Long
+
+    @Query("""
+        UPDATE tracks SET path=:path, filename=:filename, folder=:folder,
+            title=:title, artist=:artist, album=:album, genre=:genre,
+            year=:year, duration_ms=:durationMs, bpm=:bpm, bpm_analyzed=:bpmAnalyzed,
+            key_camelot=:keyCamelot, key_open=:keyOpen, key_musical=:keyMusical,
+            lufs=:lufs, rms_db=:rmsDb, peak_db=:peakDb, bitrate=:bitrate,
+            file_size=:fileSize, file_type=:fileType, rating=:rating,
+            comment=:comment, label=:label, color_r=:colorR, color_g=:colorG,
+            color_b=:colorB, is_analyzed=:isAnalyzed, date_added=:dateAdded,
+            date_modified=datetime('now')
+        WHERE id=:id
+    """)
+    suspend fun update(
+        id: Long, path: String, filename: String, folder: String,
+        title: String, artist: String, album: String, genre: String,
+        year: Int?, durationMs: Long?, bpm: Double?, bpmAnalyzed: Double?,
+        keyCamelot: String?, keyOpen: String?, keyMusical: String?,
+        lufs: Double?, rmsDb: Double?, peakDb: Double?, bitrate: Int?,
+        fileSize: Long?, fileType: String, rating: Int,
+        comment: String, label: String, colorR: Int, colorG: Int, colorB: Int,
+        isAnalyzed: Boolean, dateAdded: String,
+    )
 
     @Query("""
         UPDATE tracks SET 

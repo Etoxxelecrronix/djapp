@@ -17,9 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -108,7 +108,7 @@ fun TrackListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.InsertDriveFile,
+                imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
                 contentDescription = null,
                 tint = if (isAnalyzed) Primary else OnSurfaceVariant,
                 modifier = Modifier.size(20.dp)
@@ -231,7 +231,7 @@ fun PlaylistListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.PlaylistPlay,
+                imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
                 contentDescription = null,
                 tint = Primary,
                 modifier = Modifier.size(20.dp)

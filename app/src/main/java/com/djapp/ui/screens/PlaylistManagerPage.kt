@@ -22,12 +22,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +64,7 @@ import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.TrackEntity
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolumeDetector
+import com.djapp.engine.InternalEngineDB
 import com.djapp.i18n.Strings
 import com.djapp.util.PrefsKeys
 import com.djapp.ui.components.BpmBadge
@@ -80,7 +85,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun PlaylistManagerPage() {
+fun PlaylistManagerPage(onTrackClick: (Long) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { DJLibraryDatabase.getInstance(context) }
@@ -94,6 +99,10 @@ fun PlaylistManagerPage() {
     var showAddTracksDialog by remember { mutableStateOf(false) }
     var allTracks by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     var trackSearchQuery by remember { mutableStateOf("") }
+    var showDeletePlaylistDialog by remember { mutableStateOf<PlaylistWithCount?>(null) }
+    var showUndoRedoDialog by remember { mutableStateOf(false) }
+    var undoRedoMessage by remember { mutableStateOf<String?>(null) }
+    var showPlaylistContextMenu by remember { mutableStateOf<PlaylistWithCount?>(null) }
 
     fun refreshPlaylists() {
         scope.launch {
@@ -163,17 +172,31 @@ fun PlaylistManagerPage() {
                 color = OnSurface,
                 fontWeight = FontWeight.Bold
             )
-            FilledTonalButton(
-                onClick = { showCreateDialog = true },
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Primary,
-                    contentColor = Secondary
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(Strings.t("playlists.create"), fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (com.djapp.util.ActionHistory.canUndo() || com.djapp.util.ActionHistory.canRedo()) {
+                    FilledTonalButton(
+                        onClick = { showUndoRedoDialog = true },
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = Primary.copy(alpha = 0.15f),
+                            contentColor = Primary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+                FilledTonalButton(
+                    onClick = { showCreateDialog = true },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Primary,
+                        contentColor = Secondary
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(Strings.t("playlists.create"), fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -191,7 +214,7 @@ fun PlaylistManagerPage() {
                             selectedPlaylist = null
                             selectedPlaylistTracks = emptyList()
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Primary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Primary)
                         }
                         Text(
                             text = selectedPlaylist?.title ?: "",
@@ -229,7 +252,7 @@ fun PlaylistManagerPage() {
             if (selectedPlaylistTracks.isEmpty()) {
                 EmptyState(
                     message = Strings.t("playlists.empty"),
-                    icon = Icons.Default.QueueMusic
+                    icon = Icons.AutoMirrored.Filled.QueueMusic
                 )
             } else {
                 LazyColumn(
@@ -243,13 +266,20 @@ fun PlaylistManagerPage() {
                             bpm = track.bpm,
                             key = track.keyCamelot,
                             isAnalyzed = track.isAnalyzed,
-                            onClick = {},
+                            onClick = { onTrackClick(track.id) },
                             onLongClick = {
                                 val pl = selectedPlaylist
                                 if (pl != null) {
                                     scope.launch {
+                                        com.djapp.util.ActionHistory.push(
+                                            com.djapp.util.UndoAction.RemoveTrackFromPlaylist(
+                                                pl.id, track.id, pl.title,
+                                                track.title.ifBlank { track.filename }
+                                            )
+                                        )
                                         withContext(Dispatchers.IO) {
                                             db.playlistDao().removeTrack(pl.id, track.id)
+                                            InternalEngineDB.syncFromRoom(context)
                                         }
                                         loadTracks(pl.id)
                                         refreshPlaylists()
@@ -264,7 +294,7 @@ fun PlaylistManagerPage() {
             if (playlists.isEmpty()) {
                 EmptyState(
                     message = Strings.t("playlists.empty"),
-                    icon = Icons.Default.QueueMusic
+                    icon = Icons.AutoMirrored.Filled.QueueMusic
                 )
             } else {
                 LazyColumn(
@@ -325,8 +355,7 @@ fun PlaylistManagerPage() {
                                     loadTracks(playlist.id)
                                 },
                                 onLongClick = {
-                                    editTitle = playlist.title
-                                    editingPlaylistId = playlist.id
+                                    showPlaylistContextMenu = playlist
                                 }
                             )
                         }
@@ -360,13 +389,18 @@ fun PlaylistManagerPage() {
                 TextButton(
                     onClick = {
                         if (newTitle.isNotBlank()) {
-                            scope.launch {
-                                withContext(Dispatchers.IO) {
-                                    db.createPlaylist(newTitle)
-                                }
-                                showCreateDialog = false
-                                refreshPlaylists()
-                            }
+            scope.launch {
+                val newId = withContext(Dispatchers.IO) {
+                    val id = db.createPlaylist(newTitle)
+                    InternalEngineDB.syncFromRoom(context)
+                    id
+                }
+                showCreateDialog = false
+                refreshPlaylists()
+                com.djapp.util.ActionHistory.push(
+                    com.djapp.util.UndoAction.CreatePlaylist(newId, newTitle)
+                )
+            }
                         }
                     }
                 ) {
@@ -375,6 +409,168 @@ fun PlaylistManagerPage() {
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) {
+                    Text(Strings.t("common.cancel"), color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showPlaylistContextMenu != null) {
+        val pl = showPlaylistContextMenu!!
+        AlertDialog(
+            onDismissRequest = { showPlaylistContextMenu = null },
+            title = { Text(pl.title, color = OnSurface) },
+            text = {
+                Column {
+                    TextButton(
+                        onClick = {
+                            showPlaylistContextMenu = null
+                            editTitle = pl.title
+                            editingPlaylistId = pl.id
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = Primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(Strings.t("common.save"), color = OnSurface)
+                    }
+                    TextButton(
+                        onClick = {
+                            showPlaylistContextMenu = null
+                            showDeletePlaylistDialog = pl
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(Strings.t("playlists.delete"), color = ErrorRed)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPlaylistContextMenu = null }) {
+                    Text(Strings.t("common.cancel"), color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showDeletePlaylistDialog != null) {
+        val delPl = showDeletePlaylistDialog!!
+        AlertDialog(
+            onDismissRequest = { showDeletePlaylistDialog = null },
+            title = { Text(Strings.t("playlists.delete"), color = OnSurface) },
+            text = {
+                Text(Strings.t("playlists.delete_confirm", delPl.title), color = OnSurface)
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            val tracks = withContext(Dispatchers.IO) {
+                                db.playlistDao().getTracks(delPl.id)
+                            }
+                            com.djapp.util.ActionHistory.push(
+                                com.djapp.util.UndoAction.DeletePlaylist(
+                                    playlistId = delPl.id,
+                                    title = delPl.title,
+                                    trackIds = tracks.map { it.id },
+                                    parentId = delPl.parentId,
+                                    isFolder = delPl.isFolder,
+                                    createdAt = delPl.createdAt,
+                                )
+                            )
+                            withContext(Dispatchers.IO) {
+                                db.playlistDao().delete(delPl.id)
+                                InternalEngineDB.syncFromRoom(context)
+                            }
+                            showDeletePlaylistDialog = null
+                            refreshPlaylists()
+                            if (selectedPlaylist?.id == delPl.id) {
+                                selectedPlaylist = null
+                                selectedPlaylistTracks = emptyList()
+                            }
+                            undoRedoMessage = Strings.t("playlists.delete_done")
+                        }
+                    }
+                ) {
+                    Text(Strings.t("playlists.delete"), color = ErrorRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeletePlaylistDialog = null }) {
+                    Text(Strings.t("common.cancel"), color = Primary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
+
+    if (showUndoRedoDialog) {
+        val undoDesc = com.djapp.util.ActionHistory.undoDescription()
+        val redoDesc = com.djapp.util.ActionHistory.redoDescription()
+        AlertDialog(
+            onDismissRequest = { showUndoRedoDialog = false },
+            title = { Text(Strings.t("common.undo_redo"), color = OnSurface) },
+            text = {
+                Column {
+                    if (undoDesc != null) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    com.djapp.util.ActionHistory.undo(context)
+                                    showUndoRedoDialog = false
+                                    refreshPlaylists()
+                                    if (selectedPlaylist != null) loadTracks(selectedPlaylist!!.id)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null, tint = Primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(Strings.t("common.undo"), color = OnSurface, style = MaterialTheme.typography.bodyMedium)
+                                Text(undoDesc, color = OnSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    if (redoDesc != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    com.djapp.util.ActionHistory.redo(context)
+                                    showUndoRedoDialog = false
+                                    refreshPlaylists()
+                                    if (selectedPlaylist != null) loadTracks(selectedPlaylist!!.id)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = null, tint = Primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(Strings.t("common.redo"), color = OnSurface, style = MaterialTheme.typography.bodyMedium)
+                                Text(redoDesc, color = OnSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    if (undoDesc == null && redoDesc == null) {
+                        Text(
+                            text = Strings.t("common.undo_empty"),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OnSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showUndoRedoDialog = false }) {
                     Text(Strings.t("common.cancel"), color = Primary)
                 }
             },
@@ -433,8 +629,16 @@ fun PlaylistManagerPage() {
                                         .clickable(enabled = !isAlreadyAdded) {
                                             val plId = selectedPlaylist?.id ?: return@clickable
                                             scope.launch {
+                                                com.djapp.util.ActionHistory.push(
+                                                    com.djapp.util.UndoAction.AddTrackToPlaylist(
+                                                        plId, track.id,
+                                                        selectedPlaylist!!.title,
+                                                        track.title.ifBlank { track.filename }
+                                                    )
+                                                )
                                                 withContext(Dispatchers.IO) {
                                                     db.addTrackToPlaylist(plId, track.id)
+                                                    InternalEngineDB.syncFromRoom(context)
                                                 }
                                                 loadTracks(plId)
                                                 refreshPlaylists()

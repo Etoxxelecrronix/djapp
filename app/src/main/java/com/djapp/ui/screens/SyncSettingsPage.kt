@@ -21,7 +21,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +48,7 @@ import com.djapp.data.local.dao.PlaylistWithCount
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolume
 import com.djapp.engine.EngineVolumeDetector
+import com.djapp.engine.InternalEngineDB
 import com.djapp.i18n.Strings
 import com.djapp.ui.components.GreenButton
 import com.djapp.ui.theme.CardBackground
@@ -294,7 +296,7 @@ fun SyncSettingsPage() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        Icons.Default.PlaylistPlay,
+                                        Icons.AutoMirrored.Filled.PlaylistPlay,
                                         contentDescription = null,
                                         tint = Primary,
                                         modifier = Modifier.size(18.dp)
@@ -355,6 +357,53 @@ fun SyncSettingsPage() {
                         color = OnSurfaceVariant
                     )
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Storage,
+                        contentDescription = null,
+                        tint = Primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Interne Engine DB",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = OnSurface,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (InternalEngineDB.internalDbExists(context))
+                        "Internes m.db vorhanden"
+                    else
+                        "Kein internes m.db",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                GreenButton(
+                    text = "Intern syncen",
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                InternalEngineDB.syncFromRoom(context)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 

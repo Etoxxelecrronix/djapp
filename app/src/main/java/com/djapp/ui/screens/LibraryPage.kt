@@ -20,7 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Usb
@@ -76,7 +76,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun LibraryPage() {
+fun LibraryPage(onTrackClick: (Long) -> Unit = {}) {
     val context = LocalContext.current
     val db = remember { DJLibraryDatabase.getInstance(context) }
     val scope = rememberCoroutineScope()
@@ -146,24 +146,16 @@ fun LibraryPage() {
                 searchQuery = searchQuery,
                 onSearchChange = { searchQuery = it },
                 isLoading = isLoading,
+                onTrackClick = onTrackClick,
                 onLongPressTrack = { track ->
                     selectedTrackForPlaylist = track
                     showAddToPlaylistDialog = true
-                },
-                onSwipeDelete = { track ->
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            db.trackDao().delete(track.id)
-                            trackList = db.getAllTracks()
-                        }
-                    }
                 },
             )
             1 -> PlaylistsTab(
                 playlists = playlistList,
                 isLoading = isLoading,
                 onCreatePlaylist = { showNewPlaylistDialog = true },
-                onRefresh = { refreshData() },
             )
             2 -> DevicesTab(
                 devices = deviceList,
@@ -199,9 +191,6 @@ fun LibraryPage() {
                                         rating = et.rating * 20,
                                         comment = et.comment,
                                         label = et.label,
-                                        colorR = et.colorRed ?: 0,
-                                        colorG = et.colorGreen ?: 0,
-                                        colorB = et.colorBlue ?: 0,
                                         isAnalyzed = et.isAnalyzed == 1,
                                         dateAdded = java.time.Instant.now().toString(),
                                     )
@@ -274,8 +263,8 @@ private fun TracksTab(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     isLoading: Boolean,
+    onTrackClick: (Long) -> Unit = {},
     onLongPressTrack: (TrackEntity) -> Unit,
-    onSwipeDelete: (TrackEntity) -> Unit,
 ) {
     val filtered = if (searchQuery.isBlank()) tracks else tracks.filter {
         it.title.contains(searchQuery, true) ||
@@ -320,7 +309,7 @@ private fun TracksTab(
                         bpm = track.bpm,
                         key = track.keyCamelot,
                         isAnalyzed = track.isAnalyzed,
-                        onClick = {},
+                        onClick = { onTrackClick(track.id) },
                         onLongClick = { onLongPressTrack(track) },
                     )
                 }
@@ -334,7 +323,6 @@ private fun PlaylistsTab(
     playlists: List<PlaylistWithCount>,
     isLoading: Boolean,
     onCreatePlaylist: () -> Unit,
-    onRefresh: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -362,7 +350,7 @@ private fun PlaylistsTab(
         } else if (playlists.isEmpty()) {
             EmptyState(
                 message = Strings.t("library.empty_playlists"),
-                icon = Icons.Default.PlaylistPlay,
+                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
             )
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -502,7 +490,7 @@ private fun AddToPlaylistDialog(
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.PlaylistPlay, contentDescription = null, tint = OnSurfaceVariant)
+                        Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null, tint = OnSurfaceVariant)
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(playlist.title, color = OnSurface)

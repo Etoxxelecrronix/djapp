@@ -2,7 +2,11 @@ package com.djapp.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,7 +31,7 @@ private data class BottomNavItem(
 private val bottomNavItems = listOf(
     BottomNavItem(Screen.Home, Icons.Default.Home),
     BottomNavItem(Screen.FolderBrowser, Icons.Default.Folder),
-    BottomNavItem(Screen.PlaylistManager, Icons.Default.PlaylistPlay),
+    BottomNavItem(Screen.PlaylistManager, Icons.AutoMirrored.Filled.PlaylistPlay),
     BottomNavItem(Screen.Library, Icons.Default.LibraryMusic),
     BottomNavItem(Screen.SyncSettings, Icons.Default.Sync),
 )
@@ -125,7 +129,11 @@ fun AppNavigation() {
                 )
             }
             composable(Screen.PlaylistManager.route) {
-                PlaylistManagerPage()
+                PlaylistManagerPage(
+                    onTrackClick = { trackId ->
+                        navController.navigate(Screen.TrackDetail.createRoute(trackId))
+                    },
+                )
             }
             composable(
                 route = Screen.AnalysisProgress.route,
@@ -139,11 +147,29 @@ fun AppNavigation() {
                 val folderPath = backStackEntry.arguments?.getString("folderPath") ?: ""
                 AnalysisProgressPage(folderPath = java.net.URLDecoder.decode(folderPath, "UTF-8"))
             }
+            composable(
+                route = Screen.TrackDetail.route,
+                arguments = listOf(
+                    navArgument("trackId") {
+                        type = NavType.LongType
+                    },
+                ),
+            ) { backStackEntry ->
+                val trackId = backStackEntry.arguments?.getLong("trackId") ?: return@composable
+                TrackDetailPage(
+                    trackId = trackId,
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(Screen.UsbStick.route) {
                 UsbStickPage()
             }
             composable(Screen.Library.route) {
-                LibraryPage()
+                LibraryPage(
+                    onTrackClick = { trackId ->
+                        navController.navigate(Screen.TrackDetail.createRoute(trackId))
+                    },
+                )
             }
             composable(Screen.SyncSettings.route) {
                 SyncSettingsPage()
