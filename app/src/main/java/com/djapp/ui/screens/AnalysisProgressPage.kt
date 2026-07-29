@@ -318,7 +318,7 @@ fun AnalysisProgressPage(folderPath: String) {
                     )
                     if (analyzedBpm.isNotEmpty()) {
                         Text(
-                            text = Strings.t("analysis.bpm_range", analyzedBpm.min(), analyzedBpm.max()),
+                            text = Strings.t("analysis.bpm_range", analyzedBpm.minOrNull() ?: 0.0, analyzedBpm.maxOrNull() ?: 0.0),
                             style = MaterialTheme.typography.bodySmall,
                             color = OnSurface
                         )
