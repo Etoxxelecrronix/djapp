@@ -85,20 +85,10 @@ object EngineVolumeDetector {
         // 1. StorageManager API (primäre Quelle)
         val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
         if (storageManager != null) {
-            val volumes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                storageManager.storageVolumes
-            } else {
-                @Suppress("DEPRECATION")
-                storageManager.volumeList ?: emptyList()
-            }
+            val volumes = storageManager.storageVolumes
             for (vol in volumes) {
-                val dir = vol.directory?.absolutePath ?: vol.path
-                val isRemovable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    vol.isRemovable
-                } else {
-                    @Suppress("DEPRECATION")
-                    vol.isRemovable
-                }
+                val dir = vol.directory?.absolutePath ?: vol.directory?.path ?: ""
+                val isRemovable = vol.isRemovable
                 val label = getVolumeLabel(context, vol) ?: dir.split("/").last()
                 val type = when {
                     !isRemovable -> VolumeType.INTERNAL
@@ -180,13 +170,8 @@ object EngineVolumeDetector {
 
     private fun getVolumeLabel(context: Context, vol: StorageVolume): String? {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                @Suppress("DEPRECATION")
-                (vol.description as? CharSequence)?.toString()
-            } else {
-                @Suppress("DEPRECATION")
-                vol.getDescription(context)
-            }
+            @Suppress("DEPRECATION")
+            vol.getDescription(context)
         } catch (_: Exception) {
             null
         }
