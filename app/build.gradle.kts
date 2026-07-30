@@ -12,16 +12,21 @@ android {
         applicationId = "com.djapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.5"
+        versionCode = 18
+        versionName = "1.8"
+        resConfigs("de")
     }
 
     buildTypes {
         debug {
             isDebuggable = true
-        }
-        release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 

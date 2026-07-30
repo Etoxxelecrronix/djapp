@@ -1,0 +1,3 @@
+-dontobfuscate
+-keepattributes SourceFile,LineNumberTable
+-keep class com.djapp.** { *; }

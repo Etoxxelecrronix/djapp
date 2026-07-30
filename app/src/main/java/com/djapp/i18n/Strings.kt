@@ -87,6 +87,8 @@ object Strings {
         "engine.no_analyzed_tracks" to "Keine analysierten Tracks gefunden",
         "engine.write_success" to "%d Tracks + Playlist auf USB geschrieben",
         "engine.write_error" to "Fehler: %s",
+        "engine.sync_failed" to "Sync der Tracks auf internes Medium fehlgeschlagen",
+        "engine.export_failed" to "Export auf USB-Stick fehlgeschlagen",
         "volume.internal" to "Interner Speicher",
         "volume.usb_manual" to "USB-Stick (manuell)",
         "volume.folder" to "Ordner",

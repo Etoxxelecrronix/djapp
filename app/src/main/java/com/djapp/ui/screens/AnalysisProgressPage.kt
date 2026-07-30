@@ -54,9 +54,10 @@ import com.djapp.analysis.AnalysisQueue
 import com.djapp.analysis.QueueItem
 import com.djapp.analysis.TrackStatus
 import com.djapp.data.local.DJLibraryDatabase
+import com.djapp.engine.EngineDJDatabase
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolumeDetector
-import com.djapp.engine.InternalEngineDB
+import com.djapp.engine.VolumeType
 import com.djapp.scanner.MusicScanner
 import com.djapp.scanner.ScanResult
 import com.djapp.i18n.Strings
@@ -167,7 +168,6 @@ fun AnalysisProgressPage(folderPath: String) {
                     db.addTrackToPlaylist(plId, tid, pos)
                     pos++
                 }
-                InternalEngineDB.syncFromRoom(context)
                 com.djapp.util.ActionHistory.push(
                     com.djapp.util.UndoAction.ImportFolder(plId, playlistName)
                 )
@@ -182,7 +182,8 @@ fun AnalysisProgressPage(folderPath: String) {
             usbWriteResult = null
             val (result, hadError) = withContext(Dispatchers.IO) {
                 var volumes = EngineVolumeDetector.detectUsbVolumes(context)
-                var usbVolume = volumes.firstOrNull()
+                var usbVolume = volumes.firstOrNull { it.type != VolumeType.INTERNAL }
+                if (usbVolume == null) usbVolume = volumes.firstOrNull()
                 if (usbVolume == null) {
                     val prefs = context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE)
                     val manualPath = prefs.getString(PrefsKeys.SELECTED_PATH, null)
@@ -206,8 +207,7 @@ fun AnalysisProgressPage(folderPath: String) {
                     }
                     Triple(filePath, item.filename, item.result)
                 }
-                InternalEngineDB.syncFromRoom(context)
-                InternalEngineDB.exportToUsb(context, usbVolume.path)
+                EngineDJDatabase.invalidateTempDbCache()
                 val syncResult = EngineDJSync.writeAnalysisResultsToUsb(
                     context, usbVolume.path, tracks, playlistName
                 )

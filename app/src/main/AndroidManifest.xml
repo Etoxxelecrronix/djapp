@@ -20,12 +20,19 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.DJApp">
+            android:theme="@style/Theme.DJApp"
+            android:label="DJ Engine">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.deineapp.enginehelper.MainActivity"
+            android:exported="false"
+            android:label="Engine Playlist Helper"
+            android:theme="@android:style/Theme.DeviceDefault" />
     </application>
 
 </manifest>

@@ -44,5 +44,9 @@ npm-debug.log
 
 # Engine DJ data / user data
 338C-D70A/
+304E-71C0/
 Engine Library/
 Project/
+
+# Generated packages
+*.zip

@@ -33,9 +33,9 @@ class MainActivity : ComponentActivity() {
 
     private val manageStorageLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != RESULT_OK) {
-            Log.w("MainActivity", "manage storage permission denied")
+    ) { _ ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            Log.w("MainActivity", "MANAGE_EXTERNAL_STORAGE not granted")
         }
     }
 

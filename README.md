@@ -4,15 +4,17 @@
 
 ---
 
-## Startseite: Chat-Verlauf (Phasen 1–16 → 17)
+## Startseite: Chat-Verlauf (Phasen 1–24)
 
 Dieses README dokumentiert den **gesamten Entwicklungs-Chat-Verlauf** als Startseite.  
 Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen betroffen.
 
-**Version:** 1.5 (Build 15)  
+**Version:** 1.8 (Build 18)  
 **Package:** `com.djapp` | **Min SDK:** 26 | **Target SDK:** 35  
-**Dateien:** 45 Kotlin-Dateien | ~8.807 Zeilen Code  
-**Build:** GitHub Actions (automatisch) — Debug APK als Artifact `app-debug.apk`
+**APK-Größe:** 16 MB (Debug)  
+**Dateien:** 45 Kotlin + 2 Java-Dateien | ~8.900 Zeilen Code  
+**Build:** Lokal (ARM64) — `./gradlew assembleDebug`  
+**Build-Typ:** Nur `debug` — `release` buildType entfernt
 
 ### App-Startseite (Chat-Dashboard)
 
@@ -45,7 +47,7 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 ### Status pro Bereich
 
 | Bereich | Status | Dateien |
-|---|---|---|
+|---|---|---|---|
 | Navigation & UI | Fertig | 8 Screens + Components |
 | Room Database | Fertig | 4 Entities, 3 DAOs, v4 (3 Migrationen) |
 | Audio Analysis | Fertig | FFT, BPM, Key, LUFS, Waveform |
@@ -56,12 +58,15 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 | Track-Detailansicht | **Editierbar** | 13 editierbare Felder + Sync |
 | USB Stick Erkennung | Fertig | StorageManager, /storage/, /mnt/media_rw/, /proc/mounts |
 | Music Scanner | Fertig | Rekursiv mit Cache |
-| i18n (DE) | Fertig | ~134 Strings, nur Deutsch |
+| i18n (DE) | Fertig | ~136 Strings, nur Deutsch |
 | Theme | Fertig | Dark/Light (#1DB954 / #191414) |
+| USB-Export | **Gefixt** | Volume-Auswahl bevorzugt USB/SD, Sync ohne bestehende m.db |
+| Fehlerbehandlung | **Verbessert** | Explizite Fehlermeldungen statt silent failures |
+| AIDE Java Helper | **Neu** | 2 Java-Klassen + Layout für AIDE-Kompilierung |
 
 ---
 
-## Gesamter Chat-Verlauf (Phasen 1–16 → 17)
+## Gesamter Chat-Verlauf (Phasen 1–24)
 
 ### Phase 1: React Native → Kotlin Konvertierung
 
@@ -533,10 +538,75 @@ Alle 3 CI-Runs (#55–#57) schlugen fehl wegen `android.aapt2FromMavenOverride=/
 
 ---
 
+### Phase 18: Release-Build entfernt, Debug-ProGuard (diese Session)
+
+**Ziel:** `release` buildType ist überflüssig (rein private App), Debug-Build mit ProGuard für kleinere APK-Größe.
+
+**Geänderte Dateien (2):**
+
+| Datei | Änderung |
+|---|---|
+| `app/build.gradle.kts` | `release { isMinifyEnabled = false }` entfernt; `debug` um `isMinifyEnabled = true`, `isShrinkResources = true`, `proguardFiles(...)` ergänzt |
+| `app/proguard-rules.pro` | Neu: `-dontobfuscate`, `-keepattributes SourceFile,LineNumberTable`, `-keep class com.djapp.**` |
+
+**Ergebnis:** Nur noch `debug` buildType vorhanden. APK wird mit ProGuard optimiert (Minify + Shrink). Release-Konfiguration vollständig eliminiert.
+
+---
+
+### Phase 19: Debug-APK gebaut & analysiert (diese Session)
+
+**Ausgangslage:**
+- Projekt noch nie gebaut – keine APK, keine Build-Artifakte
+- Frage: "Aktuellen Stand der apk debug analysieren"
+
+**Build ausgeführt:**
+```bash
+./gradlew assembleDebug
+# BUILD SUCCESSFUL in 3m 13s
+```
+
+**APK-Analyse (16 MB):**
+
+| Detail | Wert |
+|---|---|
+| APK-Pfad | `app/build/outputs/apk/debug/app-debug.apk` |
+| Größe | 16 MB (16.485.382 Bytes) |
+| Package | `com.djapp` |
+| versionCode / versionName | `15` / `1.5` |
+| minSdk / targetSdk | `26` / `35` |
+| Debuggable | ✅ `debuggable=true` |
+| R8 Minify | ✅ (`isMinifyEnabled=true`, aber Optimierungen bei debuggable deaktiviert) |
+| Shrink Resources | ✅ (`isShrinkResources=true`) |
+| Signatur | Android Debug-Key (V1/V2) |
+| DEX | 1 × `classes.dex` (~7,2 MB) – keine MultiDex nötig |
+| Native Libs | Keine – reine Kotlin/Compose-App |
+| Gesamteinträge | 76 Dateien |
+
+**APK-Inhalte (sortiert nach Größe):**
+- `classes.dex` – 7.531.784 Bytes (gesamter App-Code in einer DEX)
+- `resources.arsc` – 119.600 Bytes (kompilierte Ressourcen)
+- `AndroidManifest.xml` – 6.592 Bytes (binär)
+- `kotlin/*.kotlin_builtins` – Kotlin-Stdlib-Metadaten
+- `res/` – 4 Drawable/Mipmap-Ressourcen
+- `META-INF/` – Versions-Metadaten aller Dependencies + Coroutine-Services
+- `DebugProbesKt.bin` – Compose Debug-Tooling
+
+**Auffälligkeiten:**
+1. Debug-Build mit `isMinifyEnabled=true` – ungewöhnlich, aber durch `-dontobfuscate` keine Obfuskation
+2. Kein `signingConfig` definiert – verwendet Android Studio Debug-Key
+3. Kein MultiDex nötig (< 64K Methods)
+4. Build-Warnung: `BuildType 'debug' is both debuggable and has 'isMinifyEnabled' set to true. All code optimizations and obfuscation are disabled for debuggable builds.` – R8 läuft trotzdem als shrinkage pass
+5. AAPT2 `Illegal instruction` auf dieser ARM64-Umgebung (x86_64-Binary) – Build selbst funktioniert trotzdem
+
+**Ergebnis:** Debug-APK erfolgreich gebaut (16 MB). Projekt ist build-fähig. Keine Kompilierungsfehler. 36 Tasks (5 ausgeführt, 31 cached).
+
+---
+
+
 ## Architektur
 
 ```
-com.djapp/
+com.djapp/                              # Haupt-App (Kotlin)
 ├── MainActivity.kt              # Entry Point, Permission Handling
 ├── DJApp.kt                     # Application Class
 ├── analysis/                    # Audio-Analyse Engine (12 Dateien)
@@ -573,7 +643,7 @@ com.djapp/
 ├── scanner/
 │   └── MusicScanner.kt          # Rekursiver Datei-Scanner mit Cache
 ├── i18n/
-│   └── Strings.kt               # DE Lokalisierung (~133 Strings)
+│   └── Strings.kt               # DE Lokalisierung (~136 Strings)
 ├── navigation/
 │   ├── Screen.kt                # 8 Routen definiert
 │   └── AppNavigation.kt         # NavHost + Bottom Navigation
@@ -596,7 +666,10 @@ com.djapp/
         ├── Color.kt             # Farben (#1DB954, #191414, etc.)
         ├── Theme.kt             # Dark/Light ColorScheme, DJAppTheme
         └── Type.kt              # Typography
-```
+
+com.deineapp.enginehelper/            # AIDE Java Helper (Standalone)
+├── EngineDbManager.java        # ID3-Scan + m.db Manipulation
+└── MainActivity.java           # 3-Button-UI
 
 ---
 
@@ -793,10 +866,266 @@ expandiert werden. Dabei gingen folgende Imports verloren:
 | #56 | `be65c75` | `failure` | ProGuard-Fix – selbe aapt2-Ursache |
 | #57 | `b2364c1` | **BUILDING** | aapt2-Override entfernt, CI-kompatibel |
 
+### Phase 20: USB-Export-Bugfixes & stabile Engine-Bridge
+
+**Ausgangslage:**
+- Debug-APK v1.5 (Build 15) wurde auf dem Handy getestet (3 Intros + 33 E-Toxx MP3s)
+- Test ergab: **Keine `Engine Library/`-Struktur auf dem USB-Stick** – Export fehlgeschlagen
+- USB-Stick `3C06-1343/` als Live-Test-Umgebung bereitgestellt
+
+**Gefundene Probleme:**
+
+| # | Problem | Schwere | Datei |
+|---|---|---|---|
+| 1 | `syncRoomToInternal()` gibt keinen Erfolg zurück – silent failure | Hoch | `InternalEngineDB.kt:45` |
+| 2 | `exportToUsb()` return-Wert wird in Callern nicht geprüft | Hoch | `AnalysisProgressPage.kt`, `FolderBrowserPage.kt` |
+| 3 | `EngineDJDatabase.ensureTempDb()` cacht Temp-DB – nach `pushToUsb` wird stale Temp genutzt | Hoch | `EngineDJDatabase.kt:67` |
+| 4 | `manageStorageLauncher` prüft `resultCode != RESULT_OK` – Intent liefert immer CANCELED | Mittel | `MainActivity.kt:37` |
+| 5 | `syncFromRoom()` ohne `volumeRoot` – interner Pfad statt USB-Pfad | Mittel | `InternalEngineDB.kt` (bereits im uncommitted Fix) |
+| 6 | `engineRelativePath()` scheitert an USB-Mountpoints | Mittel | `EngineDJDatabase.kt:415` (bereits im uncommitted Fix) |
+
+**Durchgeführte Fixes:**
+
+| Fix | Beschreibung |
+|---|---|
+| `syncRoomToInternal()` → `Boolean` | Gibt `true`/`false` zurück, kein silent failure mehr |
+| `syncFromRoom()` → `Boolean` | Rückgabetyp angepasst |
+| `exportToUsb()` → `Boolean` | Rückgabetyp angepasst |
+| `writeAnalyzedTracksToUsb()` | Prüft `syncFromRoom` + `exportToUsb` Return-Werte, bricht bei Fehler ab |
+| `exportFolderToUsb()` | Prüft `syncFromRoom` Return-Wert, bricht bei Fehler ab |
+| `EngineDJDatabase.invalidateTempDbCache()` | Neue Methode: setzt `lastSourcePath = null`, erzwingt Neu-Kopieren der USB-m.db in Temp |
+| Aufruf in `AnalysisProgressPage` + `FolderBrowserPage` | `invalidateTempDbCache()` vor `writeAnalysisResultsToUsb`/`syncToEngineDJ` |
+| `manageStorageLauncher` | Kein resultCode-Check mehr – prüft stattdessen `Environment.isExternalStorageManager()` |
+| `engineRelativePath()` (uncommitted) | Erkennt USB-Mountpoints (`/storage/`, `/mnt/media_rw/`, `/data/media/`) |
+| `i18n/Strings.kt` | Neue Fehlermeldungen: `engine.sync_failed`, `engine.export_failed` |
+
+**i18n-Strings hinzugefügt:**
+```kotlin
+"engine.sync_failed" to "Sync der Tracks auf internes Medium fehlgeschlagen"
+"engine.export_failed" to "Export auf USB-Stick fehlgeschlagen"
+```
+
+**Export-Logik (nach Fix):**
+```
+syncFromRoom(volumeRoot) → prüft Boolean
+  ↓ Fehler → Fehlermeldung an Benutzer
+exportToUsb() → prüft Boolean
+  ↓ Fehler → Fehlermeldung an Benutzer
+invalidateTempDbCache()
+writeAnalysisResultsToUsb() / syncToEngineDJ()
+  ↓ Fehler → Fehlermeldung an Benutzer
+✓ USB-Stick enthält Engine Library/Database2/m.db + Playlists/*.m3u8
+```
+
+**Build:**
+| APK | Pfad | Status |
+|---|---|---|
+| `app-debug.apk` | `app/build/outputs/apk/debug/app-debug.apk` | BUILD SUCCESSFUL |
+| Kopie auf Stick | `3C06-1343/app-debug.apk` | ✅ Kopiert |
+| Download-ZIP | `app-debug.zip` | ✅ Erstellt (15,8 MB) |
+
+**Letzter Build:** `./gradlew assembleDebug` – 0 Fehler (nur Warnungen)
+
+---
+
+### Phase 21: Nicht-OTG-Klärung, finaler Build & ZIP
+
+**Ausgangslage:**
+- Phase 20 fixte USB-Export-Bugs (Temp-Cache, Return-Values)
+- Frage: Funktioniert der Export auch ohne OTG-fähiges Handy?
+
+**Ergebnis:**
+- Handy erkennt USB-Stick als Speichermedium – kein OTG nötig
+- `detectUsbVolumes()` findet den Stick über StorageManager + `/storage/`-Scan
+- APK schreibt direkt auf den Stick – keine OTG-Abhängigkeit
+
+**Letzte Aktionen:**
+| Aktion | Detail |
+|---|---|
+| APK-Kopie auf Stick | `3C06-1343/app-debug.apk` (gleicher Stand wie Build) |
+| ZIP erstellt | `app-debug.zip` (15,8 MB) aus aktuellem Build |
+| Build verifiziert | `./gradlew assembleDebug` → SUCCESS (0 Fehler) |
+| README aktualisiert | Phase 21 hinzugefügt |
+
+**Finaler Workflow (v1.6 Build 16):**
+```
+1. APK installieren (von Stick oder ZIP)
+2. USB-Stick mit MP3s einstecken
+3. App → USB-Stick auswählen → Ordner scannen
+4. Analyse starten → BPM/Key/LUFS
+5. "Auf USB schreiben" → Playlist-Name
+6. App schreibt Engine Library/Database2/m.db + Playlists/*.m3u8
+7. Stick in Denon SC Live → Controller erkennt Playlists
+```
+
+---
+
+### Phase 22: Export-Flow-Refactoring & InternalEngineDB-Fixes
+
+**Ausgangslage:**
+- Debug-APK v1.6 (Build 16) auf Handy getestet – m.db und Export funktionieren nicht eigenständig
+- Analyse ergab mehrere strukturelle Probleme im Export-Flow:
+
+**Gefundene Probleme:**
+
+| # | Problem | Schwere | Datei(en) |
+|---|---|---|---|
+| 1 | `createPlaylistFromAnalyzedTracks()` ruft `syncFromRoom(context)` **ohne** volumeRoot → interne m.db mit falschen relativen Pfaden | Hoch | `AnalysisProgressPage.kt:171` |
+| 2 | `writeAnalyzedTracksToUsb()` führt redundantes `syncFromRoom()` + `exportToUsb()` vor `writeAnalysisResultsToUsb()` aus – bei Fehler in InternalEngineDB wird der eigentliche USB-Export blockiert | Hoch | `AnalysisProgressPage.kt:210-217` |
+| 3 | `exportFolderToUsb()` ignoriert Return-Wert von `InternalEngineDB.exportToUsb()` – silent failure | Hoch | `FolderBrowserPage.kt:172` |
+| 4 | `doImportFolder()` ruft `syncFromRoom(context)` ohne volumeRoot auf | Mittel | `FolderBrowserPage.kt:124` |
+| 5 | `InternalEngineDB.openInternalDb()` erstellt keine Parent-Dirs – `SQLiteDatabase.openOrCreateDatabase` kann fehlschlagen | Mittel | `InternalEngineDB.kt:27` |
+| 6 | Unbenutzte Imports (`InternalEngineDB`) in AnalysisProgressPage + FolderBrowserPage nach Refactoring | Niedrig | Beide Screens |
+
+**Durchgeführte Fixes:**
+
+| Fix | Beschreibung | Datei |
+|---|---|---|
+| `openInternalDb()` → `parentFile?.mkdirs()` | Erstellt Parent-Dirs vor DB-Erstellung, inkl. Retry-Pfad | `InternalEngineDB.kt:27-43` |
+| `createPlaylistFromAnalyzedTracks()` | `syncFromRoom(context)` entfernt – nur noch Room-Save + ActionHistory | `AnalysisProgressPage.kt:156-178` |
+| `writeAnalyzedTracksToUsb()` | Redundante `InternalEngineDB.syncFromRoom()` + `exportToUsb()` entfernt – nur noch direkter Write via `EngineDJSync.writeAnalysisResultsToUsb()` | `AnalysisProgressPage.kt:180-233` |
+| `exportFolderToUsb()` | Redundante `InternalEngineDB.syncFromRoom()` + `exportToUsb()` entfernt – nur noch `importFolderAsPlaylist` + `EngineDJSync.syncToEngineDJ()` | `FolderBrowserPage.kt:154-203` |
+| `doImportFolder()` | `syncFromRoom(context)` entfernt | `FolderBrowserPage.kt:117-132` |
+| Unused Imports | `InternalEngineDB` imports entfernt | Beide Screens |
+
+**Export-Logik (nach Fix):**
+
+```
+┌─ Variante A: "Sync zu Speichermedium" (nach Analyse) ─────────────────┐
+│ AnalysisProgressPage.writeAnalyzedTracksToUsb()                       │
+│   1. USB-Volume erkennen (detectUsbVolumes)                           │
+│   2. Analysierte Tracks aus Queue holen                               │
+│   3. EngineDJDatabase.invalidateTempDbCache()                         │
+│   4. EngineDJSync.writeAnalysisResultsToUsb() → schreibt m.db direkt  │
+│      a. Temp-DB vom USB kopieren → öffnen → bootstrappen              │
+│      b. Tracks + Playlist in Temp-DB schreiben                        │
+│      c. flushEngineDb() → Temp zurück auf USB kopieren                │
+│   5. Ergebnis anzeigen                                                │
+└───────────────────────────────────────────────────────────────────────┘
+
+┌─ Variante B: "Auf USB exportieren" (Long-Press im Ordner-Browser) ───┐
+│ FolderBrowserPage.exportFolderToUsb()                                 │
+│   1. USB-Volume erkennen (detectVolumeAtPath)                         │
+│   2. Ordner als Playlist in Room importieren                          │
+│   3. EngineDJDatabase.invalidateTempDbCache()                         │
+│   4. EngineDJSync.syncToEngineDJ() → schreibt m.db direkt             │
+│      a. Alle Room-Tracks + Playlists in Temp-DB schreiben             │
+│      b. M3U8 Sidecars schreiben                                       │
+│      c. flushEngineDb() → Temp zurück auf USB kopieren                │
+│   5. Ergebnis anzeigen                                                │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+**Wichtig:** `InternalEngineDB` wird nicht mehr im Export-Flow verwendet. Die interne m.db ist weiterhin über `syncRoomToInternal(volumeRoot)` nutzbar, aber der primäre Export erfolgt direkt via `EngineDJSync` – robuster, da kein Zwischenschritt fehlschlagen kann.
+
+**Build:**
+
+| APK | Pfad | Status |
+|---|---|---|
+| `app-debug.apk` | `app/build/outputs/apk/debug/app-debug.apk` | BUILD SUCCESSFUL (cached) |
+| ZIP | `app-debug.zip` | Neu erstellt |
+
+### Phase 23: m.db-Detection-Bugfixes (diese Session)
+
+**Ausgangslage:**
+- Debug-APK v1.7 (Build 17) auf Handy getestet – Export "Auf USB schreiben" und Sync finden keine m.db
+- USB-Stick ohne vorhandene Engine DJ Library → m.db existiert nicht auf dem Stick
+- Fehleranalyse anhand des Chat-Verlaufs und Source-Code-Reviews
+
+**Gefundene Bugs (2):**
+
+| # | Problem | Schwere | Datei | Zeile |
+|---|---|---|---|---|
+| 1 | `SyncSettingsPage` filtert Volumes ohne bestehende Engine-DJ-m.db weg – `firstOrNull { it.hasEngineLibrary }` liefert `null` für neue USB-Sticks → Sync-Button deaktiviert | Hoch | `SyncSettingsPage.kt` | 89 |
+| 2 | `AnalysisProgressPage.writeAnalyzedTracksToUsb()` nutzt `firstOrNull()` – wählt ggf. internen Speicher statt USB (StorageManager listet internal oft zuerst) | Hoch | `AnalysisProgressPage.kt` | 183-184 |
+
+**Durchgeführte Fixes:**
+
+| Fix | Beschreibung | Datei |
+|---|---|---|
+| `SyncSettingsPage` | `it.hasEngineLibrary` → `it.type != VolumeType.INTERNAL` – akzeptiert jedes USB/SD-Volume, erstellt m.db bei Bedarf neu | `SyncSettingsPage.kt:89` |
+| `AnalysisProgressPage` | `firstOrNull()` → `firstOrNull { it.type != VolumeType.INTERNAL }` mit Fallback – bevorzugt USB/SD vor internem Speicher | `AnalysisProgressPage.kt:183-184` |
+| Imports | `VolumeType`-Import in beiden Dateien ergänzt | Beide Dateien |
+
+**Build:**
+| APK | Pfad | Status |
+|---|---|---|
+| `app-debug.apk` | `app/build/outputs/apk/debug/app-debug.apk` | BUILD SUCCESSFUL |
+| ZIP | `app-debug.zip` | Neu erstellt |
+
+---
+
+### Phase 24: AIDE Java Helper & Export-Flow-Refactoring (diese Session)
+
+**Ausgangslage:**
+- Google-KI-Chat enthielt einfache Java-Klassen für AIDE-Projekt (EngineDbManager, MainActivity)
+- Bestehender Export-Flow nutzte InternalEngineDB als Zwischenschritt – fehleranfällig
+- `engineRelativePath()` scheiterte an USB-Mountpoints
+- Volume-Auswahl bevorzugte internen Speicher vor USB
+
+**Neue Dateien (3, aus Google-KI-Chat übernommen):**
+
+| Datei | Zeilen | Funktion |
+|---|---|---|
+| `com/deineapp/enginehelper/EngineDbManager.java` | 194 | Java-Klasse: ID3-Scan + m.db Manipulation via SAF DocumentFile |
+| `com/deineapp/enginehelper/MainActivity.java` | 102 | Java-Activity: 3-Button-UI (USB wählen, Ordner wählen, Playlist erstellen) |
+| `res/layout/main.xml` | 40 | Layout: 3 Buttons für AIDE-App |
+
+**Geänderte Dateien (10):**
+
+| Datei | Änderung |
+|---|---|
+| `app/build.gradle.kts` | versionCode 15→18, versionName 1.5→1.8, resConfigs("de"), debug minify+shrink, release buildType entfernt |
+| `AndroidManifest.xml` | `android:label="DJ Engine"` ergänzt, `com.deineapp.enginehelper.MainActivity` Activity registriert |
+| `MainActivity.kt` | manageStorageLauncher prüft Environment.isExternalStorageManager() statt resultCode |
+| `EngineDJDatabase.kt` | `invalidateTempDbCache()` hinzugefügt; `engineRelativePath()` mit USB-Mountpoint-Erkennung (`/storage/`, `/mnt/media_rw/`, `/data/media/`) |
+| `InternalEngineDB.kt` | `openInternalDb()` erstellt parent dirs; `syncRoomToInternal()`/`syncFromRoom()`/`exportToUsb()` return Boolean; `volumeRoot`-Parameter ergänzt |
+| `Strings.kt` | +2 Keys: `engine.sync_failed`, `engine.export_failed` |
+| `AnalysisProgressPage.kt` | InternalEngineDB entfernt; `EngineDJDatabase.invalidateTempDbCache()` vor Sync; Volume-Auswahl bevorzugt USB/SD |
+| `FolderBrowserPage.kt` | InternalEngineDB entfernt; Export-Logik umgestellt: erst Volume erkennen, dann importieren + syncen |
+| `SyncSettingsPage.kt` | Volume-Filter: `hasEngineLibrary` → `type != VolumeType.INTERNAL` (akzeptiert USB ohne bestehende m.db) |
+| `README.md` | Chat-Verlauf aktualisiert, Version 1.8, Phase 24 ergänzt |
+
+**Neue untracked Dateien:**
+- `app/proguard-rules.pro` — ProGuard-Regeln für Debug-Minify
+
+**Export-Logik (nach Refactoring):**
+```
+AnalysisProgressPage.writeAnalyzedTracksToUsb()
+  1. Volume erkennen (bevorzugt USB/SD)
+  2. EngineDJDatabase.invalidateTempDbCache()
+  3. EngineDJSync.writeAnalysisResultsToUsb() → direkter m.db-Write
+  4. Ergebnis anzeigen
+
+FolderBrowserPage.exportFolderToUsb()
+  1. Volume erkennen (detectVolumeAtPath)
+  2. Ordner als Playlist in Room importieren
+  3. EngineDJDatabase.invalidateTempDbCache()
+  4. EngineDJSync.syncToEngineDJ() → direkter m.db-Write
+  5. Ergebnis anzeigen
+```
+
+**AIDE-Kompatibilität:**
+Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert werden (Package: `com.deineapp.enginehelper`). Die App bietet einen 3-Button-Workflow: USB-Stick wählen → Musikordner wählen → Playlist automatisch in m.db erstellen. Die Haupt-App (`com.djapp`) registriert die AIDE-Activity als zweite Activity im Manifest.
+
+**Build:**
+| APK | Pfad | Status |
+|---|---|---|
+| `app-debug.apk` | `app/build/outputs/apk/debug/app-debug.apk` | BUILD SUCCESSFUL |
+
+---
+
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build funktioniert mit ARM64-AAPT2 aus `/opt/android_sdk/build-tools/35.0.0/`
 - **Debug APK:** 16 MB, wird via GitHub Actions als Artifact (`app-debug.apk`) bereitgestellt
-- **Versionierung:** `versionCode` = Phasen-Anzahl, `versionName` = major.minor (aktuell 1.5 / code 15)
-- **Nur Debug-Build:** Release wird nicht weiter verfolgt – die App ist rein privat
+- **Versionierung:** `versionCode` = Phasen-Anzahl, `versionName` = major.minor (aktuell 1.8 / code 18)
+- **Nur Debug-Build:** `release` buildType entfernt – die App ist rein privat
 - **Git-Garbage:** `.l2s.tmp_*`-Dateien im `.git/objects/` können auf F2FS zu Korruption führen — bei Bedarf `git init` + `git fetch origin` + `git add -A` + `git commit` + `git push` zur Reparatur
+- **USB-Export erfordert:** `MANAGE_EXTERNAL_STORAGE`-Grant (Android 11+), kein OTG nötig – Handy erkennt Stick als Speichermedium
+- **Temp-DB-Cache:** `EngineDJDatabase.ensureTempDb()` cacht die Temp-DB pro Volume-Pfad – nach direktem Schreiben via `pushToUsb()` muss Cache invalidiert werden
+- **Export-Flow vereinfacht:** InternalEngineDB-Zwischenschritt entfernt – direkter Write via EngineDJSync ist robuster und vermeidet Pfad-Probleme
+- **`firstOrNull`-Falle:** `detectUsbVolumes()` kann internen Speicher vor USB-Stick zurückgeben – immer `firstOrNull { it.type != VolumeType.INTERNAL }` verwenden
+- **m.db-Neuerstellung:** `openEngineDb()`/`ensureTempDb()` erzeugen eine frische m.db inkl. Schema, wenn keine auf dem USB-Stick existiert – kein vorheriges Engine-DJ-Setup nötig
+- **AIDE Java Helper:** 2 Java-Klassen + Layout für einfache AIDE-Kompilierung (Standalone-App `com.deineapp.enginehelper`) – 3-Button-Workflow ohne Kotlin/Compose-Abhängigkeiten
+- **`com.deineapp.enginehelper` im Manifest:** Zweite Activity wird im Haupt-Manifest registriert – beide Apps koexistieren in einer APK

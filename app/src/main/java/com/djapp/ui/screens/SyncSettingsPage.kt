@@ -48,6 +48,7 @@ import com.djapp.data.local.dao.PlaylistWithCount
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineVolume
 import com.djapp.engine.EngineVolumeDetector
+import com.djapp.engine.VolumeType
 import com.djapp.engine.InternalEngineDB
 import com.djapp.i18n.Strings
 import com.djapp.ui.components.GreenButton
@@ -86,7 +87,7 @@ fun SyncSettingsPage() {
         playlists = playlistList
 
         val volumes = withContext(Dispatchers.IO) { EngineVolumeDetector.detectUsbVolumes(context) }
-        usbVolume = volumes.firstOrNull { it.hasEngineLibrary }
+        usbVolume = volumes.firstOrNull { it.type != VolumeType.INTERNAL }
 
         if (usbVolume == null && selectedPath.isNotBlank()) {
             val manualVolume = withContext(Dispatchers.IO) {

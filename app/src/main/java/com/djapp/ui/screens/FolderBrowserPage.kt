@@ -52,10 +52,10 @@ import com.djapp.data.local.DJLibraryDatabase
 import com.djapp.data.local.dao.PlaylistWithCount
 import com.djapp.data.local.entity.PlaylistEntity
 import com.djapp.data.local.entity.TrackEntity
+import com.djapp.engine.EngineDJDatabase
 import com.djapp.engine.EngineDJSync
 import com.djapp.engine.EngineSyncResult
 import com.djapp.engine.EngineVolumeDetector
-import com.djapp.engine.InternalEngineDB
 import com.djapp.i18n.Strings
 import com.djapp.scanner.FolderStat
 import com.djapp.scanner.MusicScanner
@@ -119,9 +119,7 @@ fun FolderBrowserPage(
                 val tracks = folder.tracks.map {
                     Triple(it.path, it.name, it.extension)
                 }
-                val id = db.importFolderAsPlaylist(folder.name, tracks, onlyNew = onlyNew)
-                InternalEngineDB.syncFromRoom(context)
-                id
+                db.importFolderAsPlaylist(folder.name, tracks, onlyNew = onlyNew)
             }
             com.djapp.util.ActionHistory.push(
                 com.djapp.util.UndoAction.ImportFolder(plId, folder.name)
@@ -153,13 +151,6 @@ fun FolderBrowserPage(
     fun exportFolderToUsb(folder: FolderStat) {
         scope.launch {
             try {
-                val tracks = folder.tracks.map { Triple(it.path, it.name, it.extension) }
-                val plId = withContext(Dispatchers.IO) {
-                    val id = db.importFolderAsPlaylist(folder.name, tracks)
-                    InternalEngineDB.syncFromRoom(context)
-                    id
-                }
-
                 val volume = withContext(Dispatchers.IO) {
                     EngineVolumeDetector.detectVolumeAtPath(context, selectedPath)
                 }
@@ -168,8 +159,13 @@ fun FolderBrowserPage(
                     return@launch
                 }
 
+                val tracks = folder.tracks.map { Triple(it.path, it.name, it.extension) }
+                val plId = withContext(Dispatchers.IO) {
+                    db.importFolderAsPlaylist(folder.name, tracks)
+                }
+
                 val result = withContext(Dispatchers.IO) {
-                    InternalEngineDB.exportToUsb(context, volume.path)
+                    EngineDJDatabase.invalidateTempDbCache()
                     val allTracks = db.getAllTracks()
                     val pwc = db.playlistDao().getById(plId) ?: return@withContext EngineSyncResult(0, 0, listOf("playlist not found"))
                     val playlistTracks = db.playlistDao().getTracks(plId)

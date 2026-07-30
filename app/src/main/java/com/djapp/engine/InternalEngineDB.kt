@@ -23,16 +23,20 @@ object InternalEngineDB {
         return getInternalDbFile(context).parentFile!!
     }
 
-    fun openInternalDb(context: Context): SQLiteDatabase? {
+    fun openInternalDb(context: Context, ensureParentDir: Boolean = true): SQLiteDatabase? {
         return try {
-            val db = SQLiteDatabase.openOrCreateDatabase(getInternalDbFile(context), null)
+            val file = getInternalDbFile(context)
+            if (ensureParentDir) file.parentFile?.mkdirs()
+            val db = SQLiteDatabase.openOrCreateDatabase(file, null)
             EngineDJDatabase.bootstrapEngineSchema(db)
             db
         } catch (e: Exception) {
             Log.e(TAG, "openInternalDb failed", e)
             try {
                 getInternalDbFile(context).delete()
-                val db = SQLiteDatabase.openOrCreateDatabase(getInternalDbFile(context), null)
+                val file2 = getInternalDbFile(context)
+                file2.parentFile?.mkdirs()
+                val db = SQLiteDatabase.openOrCreateDatabase(file2, null)
                 EngineDJDatabase.bootstrapEngineSchema(db)
                 db
             } catch (e2: Exception) {
@@ -42,20 +46,20 @@ object InternalEngineDB {
         }
     }
 
-    suspend fun syncRoomToInternal(context: Context) {
-        val db = openInternalDb(context) ?: return
-        try {
+    suspend fun syncRoomToInternal(context: Context, volumeRoot: String? = null): Boolean {
+        val db = openInternalDb(context) ?: return false
+        return try {
             val roomDb = DJLibraryDatabase.getInstance(context)
             val allTracks = roomDb.getAllTracks()
             val allPlaylists = roomDb.playlistDao().getAll()
-            val volumeRoot = context.filesDir.absolutePath
+            val root = volumeRoot ?: context.filesDir.absolutePath
 
             val trackIdMap = mutableMapOf<Long, Long>()
 
             db.beginTransaction()
             try {
                 for (track in allTracks) {
-                    val relPath = EngineDJDatabase.engineRelativePath(track.path, volumeRoot)
+                    val relPath = EngineDJDatabase.engineRelativePath(track.path, root)
                     val ext = track.filename.substringAfterLast('.', "")
                     val fileType = when (ext.lowercase()) {
                         "mp3" -> "mp3"; "aif", "aiff" -> "aiff"
@@ -146,8 +150,10 @@ object InternalEngineDB {
             } finally {
                 db.endTransaction()
             }
+            true
         } catch (e: Exception) {
             Log.e(TAG, "syncRoomToInternal failed", e)
+            false
         } finally {
             db.close()
         }
@@ -157,9 +163,9 @@ object InternalEngineDB {
         return getInternalDbFile(context).exists()
     }
 
-    suspend fun syncFromRoom(context: Context) = syncRoomToInternal(context)
+    suspend fun syncFromRoom(context: Context, volumeRoot: String? = null): Boolean = syncRoomToInternal(context, volumeRoot)
 
-    fun exportToUsb(context: Context, volumePath: String) = pushToUsb(context, volumePath)
+    fun exportToUsb(context: Context, volumePath: String): Boolean = pushToUsb(context, volumePath)
 
     fun pushToUsb(context: Context, usbVolumePath: String): Boolean {
         return try {

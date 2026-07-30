@@ -60,6 +60,10 @@ object EngineDJDatabase {
 
     private var lastSourcePath: String? = null
 
+    fun invalidateTempDbCache() {
+        lastSourcePath = null
+    }
+
     private fun ensureTempDb(context: Context, volumePath: String) {
         val sourcePath = File(volumePath, ENGINE_DB_RELATIVE)
         val tempPath = File(getTempDbPath(context))
@@ -413,12 +417,19 @@ object EngineDJDatabase {
     }
 
     fun engineRelativePath(absPath: String, volumeRoot: String): String {
-        val root = volumeRoot.trimEnd('/')
-        val abs = if (absPath.startsWith("/")) absPath else "/$absPath"
-        return if (abs.startsWith("$root/")) {
-            abs.removePrefix("$root/")
-        } else {
-            abs.split("/").filter { it.isNotEmpty() }.takeLast(2).joinToString("/")
+        val normAbs = File(absPath).normalize().absolutePath
+        val normRoot = File(volumeRoot).normalize().absolutePath.trimEnd('/')
+        if (normAbs.startsWith("$normRoot/")) {
+            return normAbs.removePrefix("$normRoot/")
         }
+        val mountPoints = listOf("/storage/", "/mnt/media_rw/", "/data/media/")
+        for (mount in mountPoints) {
+            if (normAbs.startsWith(mount)) {
+                val after = normAbs.removePrefix(mount)
+                val slash = after.indexOf('/')
+                if (slash >= 0) return after.substring(slash + 1)
+            }
+        }
+        return normAbs.split("/").filter { it.isNotEmpty() }.takeLast(2).joinToString("/")
     }
 }
