@@ -11,8 +11,8 @@ Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen 
 
 **Version:** 1.9 (Build 19)  
 **Package:** `com.djapp` | **Min SDK:** 26 | **Target SDK:** 35  
-**APK-Größe:** 16 MB (Debug)  
-**Dateien:** 45 Kotlin + 2 Java-Dateien | ~8.900 Zeilen Code  
+**APK-Größe:** 3,2 MB (Debug, minify+shrink)  
+**Dateien:** 45 Kotlin + 2 Java-Dateien | ~9.400 Zeilen Code  
 **Build:** Lokal (ARM64) — `./gradlew assembleDebug`  
 **Build-Typ:** Nur `debug` — `release` buildType entfernt
 
@@ -1157,7 +1157,7 @@ Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert we
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build funktioniert mit ARM64-AAPT2 aus `/opt/android_sdk/build-tools/35.0.0/`
-- **Debug APK:** 16 MB, wird via GitHub Actions als Artifact (`app-debug.apk`) bereitgestellt
+- **Debug APK:** 3,2 MB (minify+shrink), liegt als `app-debug.apk` im Projekt-Root
 - **Versionierung:** `versionCode` = Phasen-Anzahl, `versionName` = major.minor (aktuell 1.9 / code 19)
 - **Nur Debug-Build:** `release` buildType entfernt – die App ist rein privat
 - **Git-Garbage:** `.l2s.tmp_*`-Dateien im `.git/objects/` können auf F2FS zu Korruption führen — bei Bedarf `git init` + `git fetch origin` + `git add -A` + `git commit` + `git push` zur Reparatur
