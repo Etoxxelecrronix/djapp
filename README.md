@@ -4,12 +4,12 @@
 
 ---
 
-## Startseite: Chat-Verlauf (Phasen 1–24)
+## Startseite: Chat-Verlauf (Phasen 1–25)
 
 Dieses README dokumentiert den **gesamten Entwicklungs-Chat-Verlauf** als Startseite.  
 Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen betroffen.
 
-**Version:** 1.8 (Build 18)  
+**Version:** 1.9 (Build 19)  
 **Package:** `com.djapp` | **Min SDK:** 26 | **Target SDK:** 35  
 **APK-Größe:** 16 MB (Debug)  
 **Dateien:** 45 Kotlin + 2 Java-Dateien | ~8.900 Zeilen Code  
@@ -51,7 +51,7 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 | Navigation & UI | Fertig | 8 Screens + Components |
 | Room Database | Fertig | 4 Entities, 3 DAOs, v4 (3 Migrationen) |
 | Audio Analysis | Fertig | FFT, BPM, Key, LUFS, Waveform |
-| Engine DJ Sync | Fertig | Volles m.db-Schema (9 Tabellen, Views, Trigger) |
+| Engine DJ Sync | **Fertig v2** | Denon-kompatibles Schema (v2): Spalten, ~15 Trigger, Indizes |
 | Internal Engine DB | Fertig | Interne m.db als Sync-Zwischenstufe |
 | Undo/Redo | Fertig | 5 Aktionstypen, 50er Stack |
 | Duplikat-Erkennung | Fertig | Ordner, Analyse, DAO-Ebene |
@@ -66,7 +66,7 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 
 ---
 
-## Gesamter Chat-Verlauf (Phasen 1–24)
+## Gesamter Chat-Verlauf (Phasen 1–25)
 
 ### Phase 1: React Native → Kotlin Konvertierung
 
@@ -1115,11 +1115,50 @@ Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert we
 
 ---
 
+### Phase 25: Engine-DJ-Schema v2 – Denon-kompatibel (diese Session)
+
+**Ausgangslage:**
+- Die vom Export erzeugte `m.db` wich vom echten Denon-Engine-Format ab: fehlende Spalten, keine Constraints, keine Trigger
+- Track-Abfrage im Sync nutzte `path OR filename` – riskant bei Umbenennungen (falsches Matching)
+- `databaseUuid` der `PlaylistEntity` wurde mit `hex(randomblob(16))` generiert statt die Library-UUID aus `Information` zu verwenden
+- `nextEntityId` (Playlist-Reihenfolge) wurde nie gesetzt – Denon-Datenmodell verlangt eine verkettete Liste
+- Bei fehlender USB-`m.db` konnte eine korrupte/gelesene Temp-DB stillschweigend eine leere DB über die echte Library legen
+
+**Geänderte Dateien (4):**
+
+| Datei | Änderung |
+|---|---|
+| `EngineDJDatabase.kt` | Schema v2: vollständiges Denon-Spaltenset, UNIQUE-Constraints, FK, ~15 Trigger, Indizes, ChangeLog-View, `engineLibraryUuid()`, Temp-DB-Cache v2 |
+| `EngineDJSync.kt` | Track-Abfrage `path` + Filename-Fallback, `libraryUuid`, `nextEntityId`-Kette |
+| `InternalEngineDB.kt` | Gleiche Fixes wie EngineDJSync für die interne m.db |
+| `AnalysisProgressPage.kt` | Fallback auf internen Speicher entfernt (nur noch USB/SD) |
+
+**Schema v2 im Detail (`EngineDJDatabase.kt`):**
+- **Track:** neue Spalten `isPerfomanceDataOfPackedTrackChanged`, `playedIndicator`, `isMetadataImported`, `pdbImportKey`, `streamingSource`, `uri`, `isBeatGridLocked`, `streamingFlags`, `explicitLyrics`, `albumArtSourceHash`, NOT-NULL-Defaults entfernt (Engine nutzt explizite Werte)
+- **Constraints:** `UNIQUE (originDatabaseUuid, originTrackId)`, `UNIQUE (path)`, `UNIQUE (title, parentListId)` Playlist, `UNIQUE (parentListId, nextListId)`, `UNIQUE (listId, databaseUuid, trackId)` PlaylistEntity
+- **Fremdschlüssel:** Track→AlbumArt, PlaylistEntity→Playlist (CASCADE), PerformanceData→Track (CASCADE), PreparelistEntity→Track
+- **Trigger (15):** origin-Fix (Track), lastEditTime auf Track/PerformanceData, ID-Schutz (kein Recycling/Ändern), Playlist-isPersisted-Propagation (Parent/Child), `nextListId`-Reset, PlaylistEntity-nextEntityId-Repair, Pack-changeLogId/timestamp, Track→PerformanceData
+- **Indizes (8):** bpmAnalyzed, artist, album, key, uri, PlaylistEntity(nextEntityId,listId), PreparelistEntity(trackId), AlbumArt(hash)
+- **`engineLibraryUuid()`:** liest/erzeugt persistente Library-UUID aus `Information` statt Zufallsblob pro Track
+- **Temp-DB-Cache v2:** `engine_m_v2.db`, Cache wird bei jedem Volume-Wechsel gelöscht, WAL/SHM werden bei Copy/Flush mitgeführt bzw. aufgeräumt, bei fehlender Quell-DB entsteht eine frische leere Library
+
+**Sync-Fixes (`EngineDJSync.kt`):**
+- Track-Matching: erst `path`, dann `filename`-Fallback (vermeidet falsches Match bei Pfad-Umbenennung)
+- `PlaylistEntity.databaseUuid` = echte Library-UUID
+- `nextEntityId`-Kette wird nach jedem Playlist-Befüllen gemäß Engine-Format aufgebaut (MIN(id) > aktuelle id, sonst 0)
+
+**Build:**
+| APK | Pfad | Status |
+|---|---|---|
+| `app-debug.apk` | `app/build/outputs/apk/debug/app-debug.apk` | BUILD SUCCESSFUL (v1.9, Build 19) |
+
+---
+
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build funktioniert mit ARM64-AAPT2 aus `/opt/android_sdk/build-tools/35.0.0/`
 - **Debug APK:** 16 MB, wird via GitHub Actions als Artifact (`app-debug.apk`) bereitgestellt
-- **Versionierung:** `versionCode` = Phasen-Anzahl, `versionName` = major.minor (aktuell 1.8 / code 18)
+- **Versionierung:** `versionCode` = Phasen-Anzahl, `versionName` = major.minor (aktuell 1.9 / code 19)
 - **Nur Debug-Build:** `release` buildType entfernt – die App ist rein privat
 - **Git-Garbage:** `.l2s.tmp_*`-Dateien im `.git/objects/` können auf F2FS zu Korruption führen — bei Bedarf `git init` + `git fetch origin` + `git add -A` + `git commit` + `git push` zur Reparatur
 - **USB-Export erfordert:** `MANAGE_EXTERNAL_STORAGE`-Grant (Android 11+), kein OTG nötig – Handy erkennt Stick als Speichermedium
@@ -1129,3 +1168,4 @@ Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert we
 - **m.db-Neuerstellung:** `openEngineDb()`/`ensureTempDb()` erzeugen eine frische m.db inkl. Schema, wenn keine auf dem USB-Stick existiert – kein vorheriges Engine-DJ-Setup nötig
 - **AIDE Java Helper:** 2 Java-Klassen + Layout für einfache AIDE-Kompilierung (Standalone-App `com.deineapp.enginehelper`) – 3-Button-Workflow ohne Kotlin/Compose-Abhängigkeiten
 - **`com.deineapp.enginehelper` im Manifest:** Zweite Activity wird im Haupt-Manifest registriert – beide Apps koexistieren in einer APK
+- **Denon-Schema v2:** `nextEntityId`-Kette + persistente `databaseUuid` (aus `Information`) sind Pflicht für korrekte Playlist-Reihenfolge auf der SC Live; die 15 Trigger replizieren das echte Engine-DJ-Datenmodell (Origin-, isPersisted-, ID-Schutz-Logik)
