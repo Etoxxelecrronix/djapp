@@ -38,6 +38,7 @@ object EngineDJSync {
             ?: return EngineSyncResult(0, 0, listOf(Strings.t("engine.db_open_error")))
 
         val volumeRoot = volumePath.trimEnd('/')
+        val libraryUuid = EngineDJDatabase.engineLibraryUuid(db)
         val trackIdMap = mutableMapOf<Long, Long>()
         val errors = mutableListOf<String>()
 
@@ -49,12 +50,17 @@ object EngineDJSync {
                     val fileType = fileTypeFromExt(ext)
                     val bpmInt = track.bpm?.let { (it * 100).toInt() }
 
-                    val existing = db.rawQuery(
-                        "SELECT id FROM Track WHERE path=? OR filename=?",
-                        arrayOf(relPath, track.filename)
-                    )
-                    val existingId = if (existing.moveToFirst()) existing.getLong(0) else null
+                    val existing = db.rawQuery("SELECT id FROM Track WHERE path=?", arrayOf(relPath))
+                    var existingId = if (existing.moveToFirst()) existing.getLong(0) else null
                     existing.close()
+                    if (existingId == null) {
+                        val byName = db.rawQuery(
+                            "SELECT id FROM Track WHERE filename=? LIMIT 1",
+                            arrayOf(track.filename)
+                        )
+                        existingId = if (byName.moveToFirst()) byName.getLong(0) else null
+                        byName.close()
+                    }
 
                     if (existingId != null && !overwrite) {
                         trackIdMap[track.id] = existingId
@@ -128,10 +134,18 @@ object EngineDJSync {
                         db.execSQL(
                             """INSERT INTO PlaylistEntity
                                (listId, trackId, databaseUuid, membershipReference)
-                               VALUES (?,?,hex(randomblob(16)),0)""",
-                            arrayOf(enginePlaylistId, engineTrackId)
+                               VALUES (?,?,?,0)""",
+                            arrayOf(enginePlaylistId, engineTrackId, libraryUuid)
                         )
                     }
+                    // nextEntityId-Kette (Reihenfolge) gemäß Engine-DJ-Format aufbauen
+                    db.execSQL(
+                        """UPDATE PlaylistEntity SET nextEntityId = IFNULL(
+                               (SELECT MIN(id) FROM PlaylistEntity p2
+                                 WHERE p2.listId = PlaylistEntity.listId AND p2.id > PlaylistEntity.id), 0)
+                           WHERE listId = ?""",
+                        arrayOf(enginePlaylistId)
+                    )
                 } catch (e: Exception) {
                     errors.add("Playlist ${playlist.title}: ${e.message}")
                 }
@@ -163,6 +177,7 @@ object EngineDJSync {
             ?: return EngineSyncResult(0, 0, listOf(Strings.t("engine.db_open_error")))
 
         val volumeRoot = volumePath.trimEnd('/')
+        val libraryUuid = EngineDJDatabase.engineLibraryUuid(db)
         val errors = mutableListOf<String>()
         val engineTrackIds = mutableListOf<Long>()
         val writtenTracks = mutableListOf<Triple<String, String, com.djapp.analysis.AnalysisResult?>>()
@@ -175,12 +190,17 @@ object EngineDJSync {
                     val fileType = fileTypeFromExt(ext)
                     val bpmInt = result?.bpm?.let { (it * 100).toInt() }
 
-                    val existing = db.rawQuery(
-                        "SELECT id FROM Track WHERE path=? OR filename=?",
-                        arrayOf(relPath, filename)
-                    )
-                    val existingId = if (existing.moveToFirst()) existing.getLong(0) else null
+                    val existing = db.rawQuery("SELECT id FROM Track WHERE path=?", arrayOf(relPath))
+                    var existingId = if (existing.moveToFirst()) existing.getLong(0) else null
                     existing.close()
+                    if (existingId == null) {
+                        val byName = db.rawQuery(
+                            "SELECT id FROM Track WHERE filename=? LIMIT 1",
+                            arrayOf(filename)
+                        )
+                        existingId = if (byName.moveToFirst()) byName.getLong(0) else null
+                        byName.close()
+                    }
 
                     if (existingId != null) {
                         db.execSQL(
@@ -232,10 +252,17 @@ object EngineDJSync {
                         db.execSQL(
                             """INSERT INTO PlaylistEntity
                                (listId, trackId, databaseUuid, membershipReference)
-                               VALUES (?,?,hex(randomblob(16)),0)""",
-                            arrayOf(playlistId, trackId)
+                               VALUES (?,?,?,0)""",
+                            arrayOf(playlistId, trackId, libraryUuid)
                         )
                     }
+                    db.execSQL(
+                        """UPDATE PlaylistEntity SET nextEntityId = IFNULL(
+                               (SELECT MIN(id) FROM PlaylistEntity p2
+                                 WHERE p2.listId = PlaylistEntity.listId AND p2.id > PlaylistEntity.id), 0)
+                           WHERE listId = ?""",
+                        arrayOf(playlistId)
+                    )
 
                     writeM3U8ForAnalyzed(volumePath, playlistName, writtenTracks)
                 } catch (e: Exception) {

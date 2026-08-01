@@ -55,7 +55,8 @@ object EngineDJDatabase {
     private fun getTempDbPath(context: Context): String {
         val dir = File(context.cacheDir, "engine_db_tmp")
         if (!dir.exists()) dir.mkdirs()
-        return File(dir, "engine_m.db").absolutePath
+        // v2: neues Schema (Engine-DJ-kompatibel); alter Cache wird bewusst ignoriert
+        return File(dir, "engine_m_v2.db").absolutePath
     }
 
     private var lastSourcePath: String? = null
@@ -64,39 +65,63 @@ object EngineDJDatabase {
         lastSourcePath = null
     }
 
-    private fun ensureTempDb(context: Context, volumePath: String) {
+    private fun ensureTempDb(context: Context, volumePath: String): Boolean {
         val sourcePath = File(volumePath, ENGINE_DB_RELATIVE)
         val tempPath = File(getTempDbPath(context))
 
-        if (lastSourcePath == volumePath && tempPath.exists()) return
+        if (lastSourcePath == volumePath && tempPath.exists()) {
+            return sourcePath.exists()
+        }
 
-        if (sourcePath.exists()) {
-            FileInputStream(sourcePath).use { input ->
-                FileOutputStream(tempPath).use { output ->
+        // Immer frisch starten: veraltete Temp-DB von einem anderen Volume/Lauf entfernen,
+        // damit bei fehlender Quell-DB eine leere, neue Engine-Library entsteht.
+        for (p in listOf(tempPath, File(tempPath.absolutePath + "-wal"), File(tempPath.absolutePath + "-shm"))) {
+            if (p.exists()) p.delete()
+        }
+
+        val sourceExisted = sourcePath.exists()
+        if (sourceExisted) {
+            copyDbFile(sourcePath, tempPath)
+        }
+        lastSourcePath = volumePath
+        return sourceExisted
+    }
+
+    private fun copyDbFile(source: File, dest: File) {
+        FileInputStream(source).use { input ->
+            FileOutputStream(dest).use { output ->
+                input.copyTo(output)
+            }
+        }
+        // Restliches WAL (nicht sauber unmountet) mitschleppen, sonst gehen Daten verloren.
+        val walSource = File(source.absolutePath + "-wal")
+        if (walSource.exists()) {
+            FileInputStream(walSource).use { input ->
+                FileOutputStream(File(dest.absolutePath + "-wal")).use { output ->
                     input.copyTo(output)
                 }
             }
         }
-        lastSourcePath = volumePath
     }
 
     fun openEngineDb(context: Context, volumePath: String): SQLiteDatabase? {
         return try {
-            ensureTempDb(context, volumePath)
-            return try {
-                val db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
-                bootstrapEngineSchema(db)
-                db
-            } catch (e1: Exception) {
-                Log.w("EngineDJDB", "openEngineDb failed (corrupted?), retrying with fresh db", e1)
+            val sourceExisted = ensureTempDb(context, volumePath)
+            val db = try {
+                SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+            } catch (e: Exception) {
+                Log.w("EngineDJDB", "openEngineDb open failed", e)
+                // Bei einer bereits existierenden Quelle NIE stillschweigend eine leere DB
+                // über die echte Library legen (z.B. wenn das Denon-SQLite-Format neuer ist).
+                if (sourceExisted) return null
                 val tempFile = File(getTempDbPath(context))
                 if (tempFile.exists()) tempFile.delete()
-                val db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
-                bootstrapEngineSchema(db)
-                db
+                SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
             }
+            bootstrapEngineSchema(db)
+            db
         } catch (e: Exception) {
-            Log.e("EngineDJDB", "openEngineDb failed after retry", e)
+            Log.e("EngineDJDB", "openEngineDb failed", e)
             null
         }
     }
@@ -108,11 +133,15 @@ object EngineDJDatabase {
             if (!dbDir.exists()) dbDir.mkdirs()
 
             val destPath = File(dbDir, "m.db")
-            FileInputStream(tempPath).use { input ->
-                FileOutputStream(destPath).use { output ->
-                    input.copyTo(output)
-                }
-            }
+            // Veraltete WAL/SHM am Ziel entfernen, damit sie nicht über unsere frische Datei gemerged werden.
+            File(destPath.absolutePath + "-wal").delete()
+            File(destPath.absolutePath + "-shm").delete()
+
+            copyDbFile(File(tempPath), destPath)
+
+            // Temp-seitige WAL/SHM aufräumen
+            File(tempPath + "-wal").delete()
+            File(tempPath + "-shm").delete()
             true
         } catch (e: Exception) {
             Log.e("EngineDJDB", "flushEngineDb failed", e)
@@ -144,19 +173,32 @@ object EngineDJDatabase {
                 composer TEXT,
                 remixer TEXT,
                 key INTEGER,
-                rating INTEGER DEFAULT 0,
+                rating INTEGER,
                 albumArt TEXT,
                 timeLastPlayed DATETIME,
-                isPlayed INTEGER DEFAULT 0,
+                isPlayed BOOLEAN,
                 fileType TEXT,
-                isAnalyzed INTEGER DEFAULT 0,
+                isAnalyzed BOOLEAN,
                 dateCreated DATETIME,
                 dateAdded DATETIME,
-                isAvailable INTEGER DEFAULT 1,
-                isMetadataOfPackedTrackChanged INTEGER DEFAULT 0,
-                lastEditTime DATETIME,
+                isAvailable BOOLEAN,
+                isMetadataOfPackedTrackChanged BOOLEAN,
+                isPerfomanceDataOfPackedTrackChanged BOOLEAN,
+                playedIndicator INTEGER,
+                isMetadataImported BOOLEAN,
+                pdbImportKey INTEGER,
+                streamingSource TEXT,
+                uri TEXT,
+                isBeatGridLocked BOOLEAN,
+                originDatabaseUuid TEXT,
                 originTrackId INTEGER,
-                originDatabaseUuid TEXT
+                streamingFlags INTEGER,
+                explicitLyrics BOOLEAN,
+                lastEditTime DATETIME,
+                albumArtSourceHash CHAR(40),
+                CONSTRAINT C_originDatabaseUuid_originTrackId UNIQUE (originDatabaseUuid, originTrackId),
+                CONSTRAINT C_path UNIQUE (path),
+                FOREIGN KEY (albumArtId) REFERENCES AlbumArt (id) ON DELETE RESTRICT
             )
         """)
         db.execSQL("""
@@ -164,10 +206,12 @@ object EngineDJDatabase {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT,
                 parentListId INTEGER,
-                isPersisted INTEGER DEFAULT 1,
+                isPersisted BOOLEAN,
                 nextListId INTEGER,
                 lastEditTime DATETIME,
-                isExplicitlyExported INTEGER DEFAULT 0
+                isExplicitlyExported BOOLEAN,
+                CONSTRAINT C_NAME_UNIQUE_FOR_PARENT UNIQUE (title, parentListId),
+                CONSTRAINT C_NEXT_LIST_ID_UNIQUE_FOR_PARENT UNIQUE (parentListId, nextListId)
             )
         """)
         db.execSQL("""
@@ -177,7 +221,9 @@ object EngineDJDatabase {
                 trackId INTEGER,
                 databaseUuid TEXT,
                 nextEntityId INTEGER,
-                membershipReference INTEGER DEFAULT 0
+                membershipReference INTEGER,
+                CONSTRAINT C_NAME_UNIQUE_FOR_LIST UNIQUE (listId, databaseUuid, trackId),
+                FOREIGN KEY (listId) REFERENCES Playlist (id) ON DELETE CASCADE
             )
         """)
         db.execSQL("""
@@ -189,34 +235,40 @@ object EngineDJDatabase {
                 quickCues BLOB,
                 loops BLOB,
                 thirdPartySourceId INTEGER,
-                activeOnLoadLoops INTEGER DEFAULT 0
+                activeOnLoadLoops INTEGER,
+                FOREIGN KEY (trackId) REFERENCES Track (id) ON DELETE CASCADE ON UPDATE CASCADE
             )
         """)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS Information (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 uuid TEXT,
-                schemaVersionMajor INTEGER DEFAULT 1,
-                schemaVersionMinor INTEGER DEFAULT 0,
-                schemaVersionPatch INTEGER DEFAULT 0,
-                currentPlayedIndiciator INTEGER DEFAULT 0,
-                lastRekordBoxLibraryImportReadCounter INTEGER DEFAULT 0
+                schemaVersionMajor INTEGER,
+                schemaVersionMinor INTEGER,
+                schemaVersionPatch INTEGER,
+                currentPlayedIndiciator INTEGER,
+                lastRekordBoxLibraryImportReadCounter INTEGER
             )
         """)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS Smartlist (
-                title TEXT NOT NULL DEFAULT '',
-                uuid TEXT,
+                listUuid TEXT NOT NULL PRIMARY KEY,
+                title TEXT,
                 parentPlaylistPath TEXT,
                 nextPlaylistPath TEXT,
-                nextListUuid TEXT
+                nextListUuid TEXT,
+                rules TEXT,
+                lastEditTime DATETIME,
+                CONSTRAINT C_NAME_UNIQUE_FOR_PARENT UNIQUE (title, parentPlaylistPath),
+                CONSTRAINT C_NEXT_LIST_UNIQUE_FOR_PARENT UNIQUE (parentPlaylistPath, nextPlaylistPath, nextListUuid)
             )
         """)
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS PreparelistEntity (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 trackId INTEGER,
-                listId INTEGER
+                trackNumber INTEGER,
+                FOREIGN KEY (trackId) REFERENCES Track (id) ON DELETE CASCADE
             )
         """)
         db.execSQL("""
@@ -236,6 +288,9 @@ object EngineDJDatabase {
             )
         """)
         db.execSQL("""
+            CREATE VIEW IF NOT EXISTS ChangeLog (id, trackId) AS SELECT 0, 0 WHERE FALSE
+        """)
+        db.execSQL("""
             CREATE VIEW IF NOT EXISTS PlaylistPath AS
             WITH RECURSIVE Heirarchy AS (
                 SELECT id AS child, parentListId AS parent, title AS name, 1 AS depth FROM Playlist
@@ -243,7 +298,8 @@ object EngineDJDatabase {
                 SELECT child, parentListId AS parent, title AS name, h.depth + 1 AS depth FROM Playlist c
                 JOIN Heirarchy h ON h.parent = c.id
             )
-            SELECT child AS playlistId, group_concat(name, ' / ') AS path FROM Heirarchy GROUP BY child
+            SELECT child AS playlistId, REPLACE(group_concat(name), ',', ' / ') AS path
+            FROM Heirarchy GROUP BY child
         """)
         db.execSQL("""
             CREATE VIEW IF NOT EXISTS PlaylistAllChildren AS
@@ -268,10 +324,98 @@ object EngineDJDatabase {
             SELECT * FROM FindAllParent
         """)
         db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_Track_bpmAnalyzed ON Track(CAST(bpmAnalyzed + 0.5 AS int))
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_Track_artist ON Track (artist)
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_Track_album ON Track (album)
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_Track_key ON Track (key)
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_Track_uri ON Track (uri)
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_PlaylistEntity_nextEntityId_listId ON PlaylistEntity(nextEntityId, listId)
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_PreparelistEntity_trackId ON PreparelistEntity (trackId)
+        """)
+        db.execSQL("""
+            CREATE INDEX IF NOT EXISTS index_AlbumArt_hash ON AlbumArt (hash)
+        """)
+        db.execSQL("""
             CREATE TRIGGER IF NOT EXISTS trigger_after_insert_Track_insert_performance_data
             AFTER INSERT ON Track
             BEGIN
                 INSERT OR IGNORE INTO PerformanceData(trackId) VALUES(NEW.id);
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_Track_fix_origin
+            AFTER INSERT ON Track
+            WHEN IFNULL(NEW.originTrackId, 0) = 0
+              OR IFNULL(NEW.originDatabaseUuid, '') = ''
+            BEGIN
+                UPDATE Track SET
+                    originTrackId = NEW.id,
+                    originDatabaseUuid = (SELECT uuid FROM Information)
+                WHERE track.id = NEW.id;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_update_Track_fix_origin
+            AFTER UPDATE ON Track
+            WHEN IFNULL(NEW.originTrackId, 0) = 0
+              OR IFNULL(NEW.originDatabaseUuid, '') = ''
+            BEGIN
+                UPDATE Track SET
+                    originTrackId = NEW.id,
+                    originDatabaseUuid = (SELECT uuid FROM Information)
+                WHERE track.id = NEW.id;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_update_only_Track_timestamp
+            AFTER UPDATE OF length, bpm, year, filename, bitrate, bpmAnalyzed, albumArtId,
+                              title, artist, album, genre, comment, label, composer, remixer,
+                              key, rating, albumArt, fileType, isAnalyzed, isBeatGridLocked,
+                              explicitLyrics
+            ON Track
+            FOR EACH ROW
+            BEGIN
+                UPDATE Track SET lastEditTime = strftime('%s') WHERE ROWID=NEW.ROWID;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_Track_check_id
+            AFTER INSERT ON Track
+            WHEN NEW.id <= (SELECT seq FROM sqlite_sequence WHERE name = 'Track')
+            BEGIN
+                SELECT RAISE(ABORT, 'Recycling deleted track id''s are not allowed');
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_update_Track_check_Id
+            BEFORE UPDATE ON Track
+            WHEN NEW.id <> OLD.id
+            BEGIN
+                SELECT RAISE(ABORT, 'Changing track id''s are not allowed');
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_PerformanceData_after_update_Track_timestamp
+            AFTER UPDATE OF trackData, isAnalyzed, overviewWaveFormData, beatData, quickCues,
+                              loops, activeOnLoadLoops
+            ON PerformanceData
+            FOR EACH ROW
+            BEGIN
+                UPDATE Track
+                SET lastEditTime = strftime('%s')
+                WHERE id = NEW.trackId;
             END
         """)
         db.execSQL("""
@@ -290,6 +434,107 @@ object EngineDJDatabase {
                 WHERE nextListId = NEW.nextListId AND parentListId = NEW.parentListId;
             END
         """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_List
+            AFTER INSERT ON Playlist
+            FOR EACH ROW BEGIN
+                UPDATE Playlist SET nextListId = 0 WHERE id = NEW.id;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_isPersist
+            AFTER INSERT ON Playlist
+            WHEN new.isPersisted = 1
+            BEGIN
+                UPDATE Playlist SET
+                    isPersisted = 1
+                WHERE id IN (SELECT parentListId FROM PlaylistAllParent WHERE id=new.id);
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_update_isPersistChild
+            AFTER UPDATE ON Playlist
+            WHEN old.isPersisted = 1
+              AND new.isPersisted = 0
+            BEGIN
+                UPDATE Playlist SET
+                    isPersisted = 0
+                WHERE id IN (SELECT childListId FROM PlaylistAllChildren WHERE id=new.id);
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_update_isPersistParent
+            AFTER UPDATE ON Playlist
+            WHEN (old.isPersisted = 0 AND new.isPersisted = 1)
+              OR (old.parentListId != new.parentListId AND new.isPersisted = 1)
+            BEGIN
+                UPDATE Playlist SET
+                    isPersisted = 1
+                WHERE id IN (SELECT parentListId FROM PlaylistAllParent WHERE id=new.id);
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_before_delete_PlaylistEntity
+            BEFORE DELETE ON PlaylistEntity
+            WHEN OLD.trackId > 0
+            BEGIN
+                UPDATE PlaylistEntity SET
+                    nextEntityId = OLD.nextEntityId
+                WHERE nextEntityId = OLD.id
+                AND listId = OLD.listId;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_Pack_changeLogId
+            AFTER INSERT ON Pack
+            FOR EACH ROW WHEN NEW.changeLogId = 0
+            BEGIN
+                UPDATE Pack SET changeLogId = 1 WHERE ROWID = NEW.ROWID;
+            END
+        """)
+        db.execSQL("""
+            CREATE TRIGGER IF NOT EXISTS trigger_after_insert_Pack_timestamp
+            AFTER INSERT ON Pack
+            FOR EACH ROW WHEN NEW.lastPackTime IS NULL
+            BEGIN
+                UPDATE Pack SET lastPackTime = strftime('%s') WHERE ROWID = NEW.ROWID;
+            END
+        """)
+        db.execSQL("""
+            INSERT INTO Information
+                (uuid, schemaVersionMajor, schemaVersionMinor, schemaVersionPatch,
+                 currentPlayedIndiciator, lastRekordBoxLibraryImportReadCounter)
+            SELECT lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' ||
+                         hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' ||
+                         hex(randomblob(6))), 1, 0, 0, 0, 0
+            WHERE NOT EXISTS (SELECT 1 FROM Information)
+        """)
+    }
+
+    fun engineLibraryUuid(db: SQLiteDatabase): String {
+        db.rawQuery(
+            "SELECT uuid FROM Information WHERE uuid IS NOT NULL AND uuid != '' LIMIT 1",
+            null
+        ).use { cursor ->
+            if (cursor.moveToFirst()) return cursor.getString(0)
+        }
+        val uuid = generateLibraryUuid()
+        db.execSQL(
+            """INSERT INTO Information
+               (uuid, schemaVersionMajor, schemaVersionMinor, schemaVersionPatch,
+                currentPlayedIndiciator, lastRekordBoxLibraryImportReadCounter)
+               VALUES (?,1,0,0,0,0)""",
+            arrayOf(uuid)
+        )
+        return uuid
+    }
+
+    private fun generateLibraryUuid(): String {
+        val bytes = ByteArray(16)
+        java.security.SecureRandom().nextBytes(bytes)
+        val h = bytes.joinToString("") { "%02x".format(it) }
+        return "${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-" +
+            "${h.substring(16, 20)}-${h.substring(20, 32)}"
     }
 
     private fun nullableLong(cursor: android.database.Cursor, column: String): Long? {

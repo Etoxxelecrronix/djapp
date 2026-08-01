@@ -183,7 +183,6 @@ fun AnalysisProgressPage(folderPath: String) {
             val (result, hadError) = withContext(Dispatchers.IO) {
                 var volumes = EngineVolumeDetector.detectUsbVolumes(context)
                 var usbVolume = volumes.firstOrNull { it.type != VolumeType.INTERNAL }
-                if (usbVolume == null) usbVolume = volumes.firstOrNull()
                 if (usbVolume == null) {
                     val prefs = context.getSharedPreferences(PrefsKeys.PREFS_NAME, Context.MODE_PRIVATE)
                     val manualPath = prefs.getString(PrefsKeys.SELECTED_PATH, null)

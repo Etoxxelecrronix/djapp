@@ -53,6 +53,7 @@ object InternalEngineDB {
             val allTracks = roomDb.getAllTracks()
             val allPlaylists = roomDb.playlistDao().getAll()
             val root = volumeRoot ?: context.filesDir.absolutePath
+            val libraryUuid = EngineDJDatabase.engineLibraryUuid(db)
 
             val trackIdMap = mutableMapOf<Long, Long>()
 
@@ -140,10 +141,17 @@ object InternalEngineDB {
                         db.execSQL(
                             """INSERT INTO PlaylistEntity
                                (listId, trackId, databaseUuid, membershipReference)
-                               VALUES (?,?,hex(randomblob(16)),0)""",
-                            arrayOf(enginePlId, engineTrackId)
+                               VALUES (?,?,?,0)""",
+                            arrayOf(enginePlId, engineTrackId, libraryUuid)
                         )
                     }
+                    db.execSQL(
+                        """UPDATE PlaylistEntity SET nextEntityId = IFNULL(
+                               (SELECT MIN(id) FROM PlaylistEntity p2
+                                 WHERE p2.listId = PlaylistEntity.listId AND p2.id > PlaylistEntity.id), 0)
+                           WHERE listId = ?""",
+                        arrayOf(enginePlId)
+                    )
                 }
 
                 db.setTransactionSuccessful()
