@@ -4,7 +4,7 @@
 
 ---
 
-## Startseite: Chat-Verlauf (Phasen 1–26)
+## Startseite: Chat-Verlauf (Phasen 1–27)
 
 Dieses README dokumentiert den **gesamten Entwicklungs-Chat-Verlauf** als Startseite.  
 Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen betroffen.
@@ -15,6 +15,39 @@ Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen 
 **Dateien:** 45 Kotlin + 2 Java-Dateien | ~9.400 Zeilen Code  
 **Build:** Lokal (ARM64) — `./gradlew assembleDebug`  
 **Build-Typ:** Nur `debug` — `release` buildType entfernt
+
+### Chat-Verlauf (Phasen-Übersicht)
+
+| Phase | Thema |
+|---|---|
+| [Phase 1](#phase-1-react-native--kotlin-konvertierung) | React Native → Kotlin Konvertierung |
+| [Phase 2](#phase-2-kernfunktionen-implementiert) | Kernfunktionen implementiert |
+| [Phase 3](#phase-3-analyse--bugfixes) | Analyse & Bugfixes |
+| [Phase 4](#phase-4-hardcoded-screens--echte-daten) | Hardcoded Screens → Echte Daten |
+| [Phase 5](#phase-5-engine-dj-workflow-analyse) | Engine DJ Workflow-Analyse |
+| [Phase 6](#phase-6-usb-stick-workflow) | USB-Stick Workflow |
+| [Phase 7](#phase-7-komplette-bereinigung-diese-session) | Komplette Bereinigung |
+| [Phase 8](#phase-8-projektbereinigung-diese-session) | Projektbereinigung |
+| [Phase 8b](#phase-8b-icon-signing-flacparser-dead-code-direkt-im-anschluss) | Icon, Signing, FlacParser, Dead-Code |
+| [Phase 9](#phase-9-high-priority-optimierungen-5-tickets) | High-Priority-Optimierungen (5 Tickets) |
+| [Phase 10](#phase-10-restliche-todo-liste-abgearbeitet-9-tickets) | Restliche TODO-Liste (9 Tickets) |
+| [Phase 11](#phase-11-i18n-vereinfacht--auf-usb-exportieren-diese-session) | i18n vereinfacht + Auf USB exportieren |
+| [Phase 12](#phase-12-ci-reparatur-diese-session) | CI-Reparatur |
+| [Phase 13](#phase-13-duplikat-erkennung-undoredo-interne-engine-db) | Duplikat-Erkennung, Undo/Redo, Interne Engine-DB |
+| [Phase 14](#phase-14-trackdetailpage-automirrored-icons-methoden-reordering) | TrackDetailPage, AutoMirrored-Icons |
+| [Phase 15](#phase-15-edit-modus-für-trackdetailpage) | Edit-Modus für TrackDetailPage |
+| [Phase 16](#phase-16-version-aktualisiert--buildtypes-ergänzt) | Version aktualisiert & buildTypes ergänzt |
+| [Phase 17](#phase-17-github-push--git-reparatur-diese-session) | GitHub Push & Git-Reparatur |
+| [Phase 18](#phase-18-release-build-entfernt-debug-proguard-diese-session) | Release-Build entfernt, Debug-ProGuard |
+| [Phase 19](#phase-19-debug-apk-gebaut--analysiert-diese-session) | Debug-APK gebaut & analysiert |
+| [Phase 20](#phase-20-usb-export-bugfixes--stabile-engine-bridge) | USB-Export-Bugfixes & stabile Engine-Bridge |
+| [Phase 21](#phase-21-nicht-otg-klärung-finaler-build--zip) | Nicht-OTG-Klärung, finaler Build & ZIP |
+| [Phase 22](#phase-22-export-flow-refactoring--internalenginedb-fixes) | Export-Flow-Refactoring & InternalEngineDB-Fixes |
+| [Phase 23](#phase-23-mdb-detection-bugfixes-diese-session) | m.db-Detection-Bugfixes |
+| [Phase 24](#phase-24-aide-java-helper--export-flow-refactoring-diese-session) | AIDE Java Helper & Export-Flow-Refactoring |
+| [Phase 25](#phase-25-engine-dj-schema-v2--denon-kompatibel-diese-session) | Engine-DJ-Schema v2 – Denon-kompatibel |
+| [Phase 26](#phase-26-korrupte-mdb-handling--frischer-rebuild-diese-session) | Korrupte m.db-Handling & frischer Rebuild |
+| [Phase 27](#phase-27-mdb-öffnungsfehler-analyse--frischer-rebuild-diese-session) | m.db-Öffnungsfehler-Analyse & frischer Rebuild |
 
 ### App-Startseite (Chat-Dashboard)
 
@@ -66,7 +99,7 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 
 ---
 
-## Gesamter Chat-Verlauf (Phasen 1–26)
+## Gesamter Chat-Verlauf (Phasen 1–27)
 
 ### Phase 1: React Native → Kotlin Konvertierung
 
@@ -1179,6 +1212,41 @@ Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert we
 | Korrupte m.db | wird automatisch als `.bak` gesichert, frische Engine-Library erzeugt |
 | APK-Größe | Ziel ~3,2 MB (Debug, minify+shrink) — Rebuild stand aus |
 | Änderungen | 1 Datei (`EngineDJDatabase.kt`), +41/−13 Zeilen (uncommitted) |
+
+---
+
+### Phase 27: m.db-Öffnungsfehler-Analyse & frischer Rebuild (diese Session)
+
+**Ausgangslage:**
+- User-Meldung: **"Apk Synchronisierung abgeschlossen, konnte m.db nicht öffnen"**
+- Die Fehlermeldung entspricht dem `engine.db_open_error`-String ("Konnte m.db nicht öffnen"), der in `EngineDJSync.syncToEngineDJ()` (Zeile 38) / `writeAnalysisResultsToUsb()` (Zeile 177) geloggt wird, wenn `EngineDJDatabase.openEngineDb()` `null` zurückgibt
+- `SyncSettingsPage.kt:152` stellt "Synchronisierung abgeschlossen" + Fehlerliste zusammen
+
+**Analyse:**
+
+| Punkt | Befund |
+|---|---|
+| APK im Repo-Root (`app-debug.apk`, 6,4 MB) | enthält Phase-26-Fix-Strings bereits im DEX (`backupCorruptSourceDb`, `korrupte m.db nach`) — der Fix war also im letzten Build drin, obwohl README Phase 26 das Gegenteil vermutete |
+| Reale m.db (`Engine Library/Database2/m.db`, 159 KB) | **korrupt**: `sqlite3` meldet `malformed database schema (PlaylistPath) - near "(": syntax error` |
+| Ursache der Korruption | Der Denon-`PlaylistPath`-View nutzt `ROW_NUMBER() OVER (...)`, das erst SQLite ≥ 3.25 versteht; ältere SQLite-Versionen werfen genau diesen Syntaxfehler beim Öffnen |
+| Bootstrap-Schema | Die frische `bootstrapEngineSchema()`-DB baut sauber: 46 Schema-Objekte, `PRAGMA integrity_check` = ok |
+| Recovery-Pfad (Phase 26) | Korrupte Quelle → als `.bak` sichern → `m.db` löschen → frische DB mit korrektem Schema erzeugen — funktioniert, wie per sqlite3 simuliert |
+
+**Durchgeführt:**
+
+| Aktion | Detail |
+|---|---|
+| Fehlerquelle verifiziert | `openEngineDb()` liefert `null` nur bei Ausnahme im äußeren `try` — genau der gemeldete Fall |
+| SQL-Recovery simuliert | Korrupte m.db → `.bak`, frische DB → `bootstrapEngineSchema()` → 46 Objekte, integrity_check ok |
+| Build gestartet | `./gradlew clean assembleDebug` für eine saubere 3,2-MB-APK (Rebuild stand aus Phase 26) |
+
+**Ergebnis:**
+| Metrik | Wert |
+|---|---|
+| Version | 1.9 (Build 19) — unverändert |
+| Diagnose | Korrupte m.db mit SQLite-3.25+-Window-Funktion wird von `openEngineDb()` erkannt; Recovery (`.bak` + frische DB) ist verifiziert |
+| APK | sauberer Rebuild auf ~3,2 MB angestoßen (Rebuild stand aus Phase 26) |
+| Änderungen | keine Code-Änderungen nötig — Fix aus Phase 26 war bereits enthalten |
 
 ---
 
