@@ -4,7 +4,7 @@
 
 ---
 
-## Startseite: Chat-Verlauf (Phasen 1–25)
+## Startseite: Chat-Verlauf (Phasen 1–26)
 
 Dieses README dokumentiert den **gesamten Entwicklungs-Chat-Verlauf** als Startseite.  
 Jede Phase zeigt: Was war das Problem, was wurde gemacht, welche Dateien/Zeilen betroffen.
@@ -66,7 +66,7 @@ Beim Öffnen der App erscheint der **Chat-Dashboard-Bildschirm** (`HomePage.kt`)
 
 ---
 
-## Gesamter Chat-Verlauf (Phasen 1–25)
+## Gesamter Chat-Verlauf (Phasen 1–26)
 
 ### Phase 1: React Native → Kotlin Konvertierung
 
@@ -1154,6 +1154,34 @@ Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert we
 
 ---
 
+### Phase 26: Korrupte m.db-Handling & frischer Rebuild (diese Session)
+
+**Ausgangslage:**
+- Letzter Build (`app-debug.apk` v1.9, Build 19, 3,2 MB) analysiert — Baseline: HEAD `5a5ac18`, 45 Kotlin-Dateien, ~9.130 Zeilen
+- Es gab nicht eingecheckte Änderungen in `EngineDJDatabase.kt` (mtime nach dem Build) — die korrupte-m.db-Backup-Logik war **nicht** im letzten APK enthalten
+- Ein neuer Build zum Einspielen der Änderungen erzeugte zunächst eine APK mit **6,4 MB** (verwaiste Daten im Zip → doppelte Größe)
+
+**Durchgeführte Fixes (`EngineDJDatabase.kt`):**
+
+| Fix | Beschreibung | Zeilen |
+|---|---|---|
+| `openEngineDb()` | Bei Open/Bootstrap-Fehler der Temp-DB wird die korrupte Quell-m.db als `.bak` gesichert, anschließend eine frische DB erzeugt — nie stillschweigend eine leere DB über die echte Library legen | 105–130 |
+| `backupCorruptSourceDb()` | Neue Funktion: kopiert korrupte `m.db` → `m.db.bak`, löscht Quelldatei samt `-wal`/`-shm`, damit `flushEngineDb` eine frische DB schreiben kann | 132–148 |
+| `deleteTempDbFiles()` | Neue Funktion: räumt Temp-DB + `-wal`/`-shm` auf — ersetzt die Inline-Loop in `ensureTempDb()` | 76–78, 150–155 |
+| `ensureTempDb()` | Nutzt nun den `deleteTempDbFiles()`-Helper (veraltete Temp-DB von anderem Volume/Lauf entfernen) | 68–86 |
+
+**Ursache der 6,4-MB-APK:** Verwaiste/verdoppelte Daten im Zip (orphaned local file header), kein echter Code-Zuwachs. Lösung: sauberer Rebuild via `./gradlew clean` + `assembleDebug`.
+
+**Ergebnis:**
+| Metrik | Wert |
+|---|---|
+| Version | 1.9 (Build 19) — unverändert |
+| Korrupte m.db | wird automatisch als `.bak` gesichert, frische Engine-Library erzeugt |
+| APK-Größe | Ziel ~3,2 MB (Debug, minify+shrink) — Rebuild stand aus |
+| Änderungen | 1 Datei (`EngineDJDatabase.kt`), +41/−13 Zeilen (uncommitted) |
+
+---
+
 ### Erkenntnisse
 
 - **AAPT2 (ARM64-Host vs x86_64-Binary):** Lokaler Build funktioniert mit ARM64-AAPT2 aus `/opt/android_sdk/build-tools/35.0.0/`
@@ -1169,3 +1197,5 @@ Die Java-Dateien können in einer AIDE-Umgebung als Standalone-App kompiliert we
 - **AIDE Java Helper:** 2 Java-Klassen + Layout für einfache AIDE-Kompilierung (Standalone-App `com.deineapp.enginehelper`) – 3-Button-Workflow ohne Kotlin/Compose-Abhängigkeiten
 - **`com.deineapp.enginehelper` im Manifest:** Zweite Activity wird im Haupt-Manifest registriert – beide Apps koexistieren in einer APK
 - **Denon-Schema v2:** `nextEntityId`-Kette + persistente `databaseUuid` (aus `Information`) sind Pflicht für korrekte Playlist-Reihenfolge auf der SC Live; die 15 Trigger replizieren das echte Engine-DJ-Datenmodell (Origin-, isPersisted-, ID-Schutz-Logik)
+- **Korrupte m.db:** `openEngineDb()` sichert eine unlesbare Quell-m.db automatisch als `.bak`, löscht sie samt WAL/SHM und erzeugt eine frische Engine-Library — nie stillschweigend eine leere DB über die echte Library legen
+- **APK-Größen-Anomalie:** Eine APK mit verwaisten Zip-Daten (orphaned local file header) kann doppelt so groß sein (~6,4 MB statt ~3,2 MB) — Abhilfe: `./gradlew clean` + `assembleDebug`

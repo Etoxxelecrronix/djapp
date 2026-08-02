@@ -75,9 +75,7 @@ object EngineDJDatabase {
 
         // Immer frisch starten: veraltete Temp-DB von einem anderen Volume/Lauf entfernen,
         // damit bei fehlender Quell-DB eine leere, neue Engine-Library entsteht.
-        for (p in listOf(tempPath, File(tempPath.absolutePath + "-wal"), File(tempPath.absolutePath + "-shm"))) {
-            if (p.exists()) p.delete()
-        }
+        deleteTempDbFiles(context)
 
         val sourceExisted = sourcePath.exists()
         if (sourceExisted) {
@@ -107,22 +105,52 @@ object EngineDJDatabase {
     fun openEngineDb(context: Context, volumePath: String): SQLiteDatabase? {
         return try {
             val sourceExisted = ensureTempDb(context, volumePath)
-            val db = try {
-                SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+            var db: SQLiteDatabase? = null
+            try {
+                db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+                bootstrapEngineSchema(db)
             } catch (e: Exception) {
-                Log.w("EngineDJDB", "openEngineDb open failed", e)
-                // Bei einer bereits existierenden Quelle NIE stillschweigend eine leere DB
-                // über die echte Library legen (z.B. wenn das Denon-SQLite-Format neuer ist).
-                if (sourceExisted) return null
-                val tempFile = File(getTempDbPath(context))
-                if (tempFile.exists()) tempFile.delete()
-                SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+                db?.close()
+                db = null
+                Log.w("EngineDJDB", "openEngineDb open/bootstrap failed", e)
+                // Quell-m.db existiert, ist aber unlesbar/korrupt (z.B. kaputte View,
+                // inkompatibles Denon-SQLite-Format). Nie stillschweigend eine leere DB
+                // über die echte Library legen – stattdessen die Korrupte als .bak sichern
+                // und mit einer frischen, korrekten DB weiterarbeiten.
+                if (sourceExisted) backupCorruptSourceDb(context, volumePath)
+                deleteTempDbFiles(context)
+                db = SQLiteDatabase.openOrCreateDatabase(getTempDbPath(context), null)
+                bootstrapEngineSchema(db)
             }
-            bootstrapEngineSchema(db)
             db
         } catch (e: Exception) {
             Log.e("EngineDJDB", "openEngineDb failed", e)
             null
+        }
+    }
+
+    private fun backupCorruptSourceDb(context: Context, volumePath: String) {
+        try {
+            val sourcePath = File(volumePath, ENGINE_DB_RELATIVE)
+            if (sourcePath.exists()) {
+                val backupPath = File(sourcePath.absolutePath + ".bak")
+                copyDbFile(sourcePath, backupPath)
+                // Korrupte Quelldatei samt WAL/SHM entfernen, damit flushEngineDb
+                // eine frische m.db an diese Stelle schreiben kann.
+                sourcePath.delete()
+                File(sourcePath.absolutePath + "-wal").delete()
+                File(sourcePath.absolutePath + "-shm").delete()
+                Log.w("EngineDJDB", "korrupte m.db nach ${backupPath.name} gesichert, frische DB wird erzeugt")
+            }
+        } catch (e: Exception) {
+            Log.w("EngineDJDB", "backupCorruptSourceDb failed", e)
+        }
+    }
+
+    private fun deleteTempDbFiles(context: Context) {
+        val tempPath = getTempDbPath(context)
+        for (p in listOf(File(tempPath), File(tempPath + "-wal"), File(tempPath + "-shm"))) {
+            if (p.exists()) p.delete()
         }
     }
 
